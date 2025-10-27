@@ -53,7 +53,7 @@ export function CompanyEmail() {
 
           <CardContent>
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="email"
               render={({ field }) => (
                 <FormItem className="max-w-[300px]">

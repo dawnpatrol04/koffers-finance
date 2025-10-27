@@ -69,7 +69,7 @@ export function SupportForm() {
       >
         <div className="flex space-x-4">
           <FormField
-            control={form.control}
+            control={form.control as any}
             name="email"
             render={({ field }) => (
               <FormItem className="w-full">
@@ -83,7 +83,7 @@ export function SupportForm() {
           />
 
           <FormField
-            control={form.control}
+            control={form.control as any}
             name="fullName"
             render={({ field }) => (
               <FormItem className="w-full">
@@ -98,7 +98,7 @@ export function SupportForm() {
         </div>
 
         <FormField
-          control={form.control}
+          control={form.control as any}
           name="subject"
           render={({ field }) => (
             <FormItem>
@@ -116,7 +116,7 @@ export function SupportForm() {
 
         <div className="flex space-x-4">
           <FormField
-            control={form.control}
+            control={form.control as any}
             name="type"
             render={({ field }) => (
               <FormItem className="w-full">
@@ -145,7 +145,7 @@ export function SupportForm() {
             )}
           />
           <FormField
-            control={form.control}
+            control={form.control as any}
             name="priority"
             render={({ field }) => (
               <FormItem className="w-full">
@@ -173,7 +173,7 @@ export function SupportForm() {
         </div>
 
         <FormField
-          control={form.control}
+          control={form.control as any}
           name="message"
           render={({ field }) => (
             <FormItem>

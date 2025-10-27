@@ -52,7 +52,7 @@ export function CompanyCountry() {
 
           <CardContent>
             <FormField
-              control={form.control}
+              control={form.control as any}
               name="countryCode"
               render={({ field }) => (
                 <FormItem className="max-w-[300px]">

@@ -46,7 +46,7 @@ export function TeamDropdown({ isExpanded = false }: Props) {
   }, [user?.team?.id]);
 
   const sortedTeams =
-    teams?.sort((a, b) => {
+    (teams as any)?.sort((a: any, b: any) => {
       if (a.id === selectedId) return -1;
       if (b.id === selectedId) return 1;
 
@@ -72,7 +72,7 @@ export function TeamDropdown({ isExpanded = false }: Props) {
     setSelectedId(teamId);
     setActive(false);
 
-    changeTeamMutation.mutate({ teamId });
+    (changeTeamMutation.mutate as any)({ teamId });
   };
 
   return (

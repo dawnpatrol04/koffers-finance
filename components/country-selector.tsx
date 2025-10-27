@@ -48,7 +48,6 @@ export function CountrySelector({ defaultValue, onSelect }: Props) {
       <PopoverContent
         className="w-[225px] p-0 z-[60]"
         align="start"
-        portal={true}
       >
         <Command loop>
           <CommandInput
