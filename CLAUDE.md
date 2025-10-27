@@ -99,3 +99,81 @@ The following components are referenced but not yet implemented (will return pla
 - `dashboard-with-midday-components.png` - Dashboard overview with sidebar
 - `settings-page-general.png` - Settings/General tab
 - `settings-notifications.png` - Settings/Notifications tab
+
+---
+
+# DEPLOYMENT WORKFLOW (CRITICAL - FOLLOW FOR NEXT 10-12 HOURS)
+
+## The Incremental Deployment Process
+
+**DO NOT MAKE BULK CHANGES.** Build incrementally, verify at each step.
+
+### The Cycle (Repeat for Each Component/Feature):
+
+1. **Make ONE small change** (add one component, one page, one feature)
+2. **Test locally** - `npm run build` to verify it builds without errors
+3. **Commit changes** - `git add . && git commit -m "descriptive message"`
+4. **Push to GitHub** - `git push`
+5. **Deploy to Vercel** - Use Vercel CLI: `vercel --prod` (faster than git integration)
+6. **Check deployment logs** - Look for any errors in Vercel output
+7. **Verify in browser** - Use Playwright browser tool to check the deployed URL works
+8. **If it works** - Move to next component
+9. **If it fails** - Fix the issue, repeat from step 2
+
+### Why This Matters
+
+The previous attempt failed because:
+- Added too many placeholder components at once
+- Didn't verify builds incrementally
+- TypeScript errors accumulated
+- Runtime errors weren't caught early
+- Spent hours debugging instead of preventing issues
+
+### Rules
+
+1. **One component at a time** - Don't add multiple components in one commit
+2. **Always build locally first** - `npm run build` before pushing
+3. **Use Vercel CLI** - `vercel --prod` is faster than waiting for git integration
+4. **Check logs immediately** - Don't assume it worked, verify
+5. **Browser test every deployment** - Use Playwright to actually load the page
+6. **If build fails locally, DO NOT push** - Fix it first
+7. **Keep commits small** - Easy to revert if something breaks
+
+### Vercel CLI Commands
+
+```bash
+# Deploy to production (use this after each change)
+vercel --prod
+
+# Check deployment logs
+vercel logs [deployment-url]
+
+# List projects
+vercel projects ls
+
+# Remove deployment (if needed)
+vercel remove [project-name] --yes
+```
+
+### Starting Fresh Checklist
+
+- [ ] Create minimal Next.js app with just landing page
+- [ ] Verify it builds: `npm run build`
+- [ ] Create GitHub repo and push
+- [ ] Deploy to Vercel: `vercel --prod`
+- [ ] Verify in browser (Playwright)
+- [ ] THEN start adding components one by one
+
+### Component Addition Order
+
+Start with the simplest, most independent components first:
+
+1. **Landing page** (public, no auth)
+2. **Auth pages** (login/signup)
+3. **Basic dashboard shell** (layout only, no data)
+4. **UI components** (buttons, cards, icons - no logic)
+5. **Dashboard with placeholders** (structure, no real data)
+6. **Settings pages** (one at a time)
+7. **Data integration** (Appwrite, Plaid)
+
+**After EACH step above, run the full deployment cycle.**

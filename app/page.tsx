@@ -1,10 +1,9 @@
-import { StartPage } from "@/components/website/startpage";
-
-export default function LandingPage() {
+export default function Home() {
   return (
-    <div className="min-h-screen relative px-4 md:px-8">
-      <div className="max-w-7xl mx-auto">
-        <StartPage />
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-4xl font-bold mb-4">Koffers Finance</h1>
+        <p className="text-gray-600">Coming Soon</p>
       </div>
     </div>
   );
