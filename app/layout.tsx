@@ -1,5 +1,7 @@
 import './globals.css';
 import type { Metadata } from 'next';
+import { UserProvider } from '@/contexts/user-context';
+import { QueryProvider } from '@/contexts/query-provider';
 
 export const metadata: Metadata = {
   title: 'Koffers - Personal Finance',
@@ -13,7 +15,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <QueryProvider>
+          <UserProvider>{children}</UserProvider>
+        </QueryProvider>
+      </body>
     </html>
   );
 }

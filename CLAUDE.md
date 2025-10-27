@@ -116,9 +116,29 @@ The following components are referenced but not yet implemented (will return pla
 4. **Push to GitHub** - `git push`
 5. **Deploy to Vercel** - Use Vercel CLI: `vercel --prod` (faster than git integration)
 6. **Check deployment logs** - Look for any errors in Vercel output
-7. **Verify in browser** - Use Playwright browser tool to check the deployed URL works
-8. **If it works** - Move to next component
-9. **If it fails** - Fix the issue, repeat from step 2
+7. **CRITICAL: Take screenshot and VISUALLY VERIFY** - Use Playwright to take screenshot, READ the image, compare to Midday reference
+8. **Loop up to 5 times to fix styling/layout** - If it doesn't match Midday exactly, fix and redeploy
+9. **If it matches Midday** - Move to next component
+10. **If it fails** - Fix the issue, repeat from step 2
+
+### VISUAL VERIFICATION IS MANDATORY
+
+**YOU MUST TAKE A SCREENSHOT AND READ IT AS AN IMAGE EVERY SINGLE TIME.**
+
+The workflow without visual verification creates garbage that looks nothing like Midday. You CANNOT rely on:
+- Text snapshots from Playwright
+- Assuming components look right
+- "It deployed successfully" = good enough
+
+**EVERY deployment must:**
+1. Take a screenshot with `mcp__playwright__browser_take_screenshot`
+2. The screenshot returns an image that you CAN SEE
+3. LOOK at the image and compare it to what Midday looks like
+4. If spacing, colors, fonts, layout are wrong - FIX THEM
+5. Redeploy and check again
+6. Loop up to 5 times per component until it matches Midday
+
+**Remember:** You're copying EXACT components from Midday. If it doesn't look identical, you did something wrong.
 
 ### Why This Matters
 
