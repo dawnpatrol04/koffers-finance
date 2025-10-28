@@ -1,5 +1,11 @@
 # CLAUDE.md - Current Mission
 
+## WORKING DIRECTIVE
+
+**KEEP GOING. DO NOT STOP. JUST KEEP GOING.**
+
+Once you finish what you're working on, figure out what else needs to be done and keep moving forward. Don't wait for instructions - be proactive and maintain momentum.
+
 ## PRIMARY MISSION: Copy EXACT Midday Dashboard Components
 
 **CRITICAL RULE**: DO NOT RECREATE - COPY AND PASTE COMPONENTS FROM MIDDAY

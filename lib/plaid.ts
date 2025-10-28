@@ -3,15 +3,13 @@ import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } fro
 // Initialize Plaid client
 const configuration = new Configuration({
   basePath: PlaidEnvironments[process.env.PLAID_ENV as keyof typeof PlaidEnvironments] || PlaidEnvironments.sandbox,
-  baseOptions: {
-    headers: {
-      'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID!,
-      'PLAID-SECRET': process.env.PLAID_SECRET!,
-    },
-  },
 });
 
 export const plaidClient = new PlaidApi(configuration);
+
+// Export credentials for use in API calls
+export const plaidClientId = process.env.PLAID_CLIENT_ID!;
+export const plaidSecret = process.env.PLAID_SECRET!;
 
 // Helper to get products array
 export const getPlaidProducts = (): Products[] => {

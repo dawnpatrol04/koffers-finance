@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { plaidClient, getPlaidProducts, getCountryCodes } from '@/lib/plaid';
+import { plaidClient, plaidClientId, plaidSecret, getPlaidProducts, getCountryCodes } from '@/lib/plaid';
 
 export async function POST(request: NextRequest) {
   try {
@@ -11,6 +11,8 @@ export async function POST(request: NextRequest) {
     }
 
     const response = await plaidClient.linkTokenCreate({
+      client_id: plaidClientId,
+      secret: plaidSecret,
       user: {
         client_user_id: userId,
       },
