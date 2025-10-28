@@ -17,6 +17,7 @@ const icons = {
   "/apps": () => <Icons.Apps size={20} />,
   "/inbox": () => <Icons.Inbox2 size={20} />,
   "/chat": () => <Icons.Chat size={20} />,
+  "/blog": () => <Icons.Blog size={20} />,
 } as const;
 
 const items = [
@@ -32,6 +33,10 @@ const items = [
   {
     path: "/chat",
     name: "Chat",
+  },
+  {
+    path: "/blog",
+    name: "Blog",
   },
   {
     path: "/transactions",
