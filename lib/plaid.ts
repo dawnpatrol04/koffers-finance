@@ -1,16 +1,25 @@
-import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } from 'plaid';
+import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode, AxiosRequestConfig } from 'plaid';
 
-// Initialize Plaid client
-// Note: Plaid SDK v39+ uses axios internally which requires credentials in request body, not headers
+// Initialize Plaid client with axios interceptor to add credentials
+const plaidClientId = process.env.PLAID_CLIENT_ID!;
+const plaidSecret = process.env.PLAID_SECRET!;
+
 const configuration = new Configuration({
   basePath: PlaidEnvironments[process.env.PLAID_ENV as keyof typeof PlaidEnvironments] || PlaidEnvironments.sandbox,
+  baseOptions: {
+    // Use axios interceptor to add credentials to request body
+    transformRequest: [(data: any, headers: any) => {
+      const parsed = typeof data === 'string' ? JSON.parse(data) : data;
+      return JSON.stringify({
+        ...parsed,
+        client_id: plaidClientId,
+        secret: plaidSecret,
+      });
+    }],
+  } as AxiosRequestConfig,
 });
 
 export const plaidClient = new PlaidApi(configuration);
-
-// Export credentials to be used in API requests
-export const plaidClientId = process.env.PLAID_CLIENT_ID!;
-export const plaidSecret = process.env.PLAID_SECRET!;
 
 // Helper to get products array
 export const getPlaidProducts = (): Products[] => {
