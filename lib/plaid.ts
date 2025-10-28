@@ -1,22 +1,22 @@
-import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode, AxiosRequestConfig } from 'plaid';
+import { Configuration, PlaidApi, PlaidEnvironments, Products, CountryCode } from 'plaid';
+import axios from 'axios';
 
-// Initialize Plaid client with axios interceptor to add credentials
-const plaidClientId = process.env.PLAID_CLIENT_ID!;
-const plaidSecret = process.env.PLAID_SECRET!;
+// Create custom axios instance with interceptor
+const axiosInstance = axios.create();
+
+// Add request interceptor to inject credentials as headers
+axiosInstance.interceptors.request.use((config) => {
+  config.headers['PLAID-CLIENT-ID'] = process.env.PLAID_CLIENT_ID;
+  config.headers['PLAID-SECRET'] = process.env.PLAID_SECRET;
+  return config;
+});
 
 const configuration = new Configuration({
   basePath: PlaidEnvironments[process.env.PLAID_ENV as keyof typeof PlaidEnvironments] || PlaidEnvironments.sandbox,
   baseOptions: {
-    // Use axios interceptor to add credentials to request body
-    transformRequest: [(data: any, headers: any) => {
-      const parsed = typeof data === 'string' ? JSON.parse(data) : data;
-      return JSON.stringify({
-        ...parsed,
-        client_id: plaidClientId,
-        secret: plaidSecret,
-      });
-    }],
-  } as AxiosRequestConfig,
+    // Use custom axios instance with interceptor
+    axios: axiosInstance,
+  },
 });
 
 export const plaidClient = new PlaidApi(configuration);
