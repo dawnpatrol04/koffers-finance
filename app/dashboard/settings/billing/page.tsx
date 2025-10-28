@@ -1,10 +1,4 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Plans } from "@/components/billing/plans";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -14,19 +8,13 @@ export const metadata: Metadata = {
 export default function BillingSettings() {
   return (
     <div className="space-y-12">
-      <Card>
-        <CardHeader>
-          <CardTitle>Billing</CardTitle>
-          <CardDescription>
-            Manage your subscription and billing information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-muted-foreground">
-            Billing settings coming soon.
-          </div>
-        </CardContent>
-      </Card>
+      <div>
+        <h2 className="text-lg font-medium leading-none tracking-tight mb-4">
+          Plans
+        </h2>
+
+        <Plans />
+      </div>
     </div>
   );
 }
