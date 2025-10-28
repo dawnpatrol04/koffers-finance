@@ -42,6 +42,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "autoprefixer": "^10.4.20",
+    "dotenv": "^17.2.3",
     "node-appwrite": "^20.2.1",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.18",
