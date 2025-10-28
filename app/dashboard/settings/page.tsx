@@ -1,27 +1,17 @@
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { CompanyLogo } from "@/components/settings/company-logo";
+import { CompanyName } from "@/components/settings/company-name";
+import { CompanyEmail } from "@/components/settings/company-email";
+import { CompanyCountry } from "@/components/settings/company-country";
+import { DeleteTeam } from "@/components/settings/delete-team";
 
 export default function GeneralSettings() {
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>General Settings</CardTitle>
-          <CardDescription>
-            Manage your account and preferences
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-sm text-muted-foreground">
-            General settings coming soon.
-          </div>
-        </CardContent>
-      </Card>
+    <div className="space-y-12">
+      <CompanyLogo />
+      <CompanyName />
+      <CompanyEmail />
+      <CompanyCountry />
+      <DeleteTeam />
     </div>
   );
 }
