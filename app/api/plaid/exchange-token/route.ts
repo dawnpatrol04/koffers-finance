@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { plaidClient, plaidClientId, plaidSecret } from '@/lib/plaid';
+import { plaidClient } from '@/lib/plaid';
 import { createServerClient } from '@/lib/appwrite-server';
 
 export async function POST(request: NextRequest) {
@@ -16,8 +16,6 @@ export async function POST(request: NextRequest) {
 
     // Exchange public token for access token
     const response = await plaidClient.itemPublicTokenExchange({
-      client_id: plaidClientId,
-      secret: plaidSecret,
       public_token,
     });
 
