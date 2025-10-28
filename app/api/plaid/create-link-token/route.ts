@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { plaidClient, getPlaidProducts, getCountryCodes } from '@/lib/plaid';
+import { getPlaidProducts, getCountryCodes } from '@/lib/plaid';
+
+const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
+const PLAID_BASE_URL = PLAID_ENV === 'production'
+  ? 'https://production.plaid.com'
+  : PLAID_ENV === 'development'
+  ? 'https://development.plaid.com'
+  : 'https://sandbox.plaid.com';
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,22 +17,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
-    const response = await plaidClient.linkTokenCreate({
-      user: {
-        client_user_id: userId,
+    // Make direct HTTP request to Plaid API to avoid SDK header issues on Vercel
+    const plaidResponse = await fetch(`${PLAID_BASE_URL}/link/token/create`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'PLAID-CLIENT-ID': process.env.PLAID_CLIENT_ID || '',
+        'PLAID-SECRET': process.env.PLAID_SECRET || '',
       },
-      client_name: 'Koffers',
-      products: getPlaidProducts(),
-      country_codes: getCountryCodes(),
-      language: 'en',
+      body: JSON.stringify({
+        user: {
+          client_user_id: userId,
+        },
+        client_name: 'Koffers',
+        products: getPlaidProducts(),
+        country_codes: getCountryCodes(),
+        language: 'en',
+      }),
     });
 
-    return NextResponse.json({ link_token: response.data.link_token });
+    const data = await plaidResponse.json();
+
+    if (!plaidResponse.ok) {
+      console.error('Plaid API error:', data);
+      return NextResponse.json({ error: data }, { status: plaidResponse.status });
+    }
+
+    return NextResponse.json({ link_token: data.link_token });
   } catch (error: any) {
     console.error('Error creating link token:', error);
-    console.error('Plaid error response:', error.response?.data);
     return NextResponse.json(
-      { error: error.response?.data || error.message || 'Failed to create link token' },
+      { error: error.message || 'Failed to create link token' },
       { status: 500 }
     );
   }
