@@ -1,6 +1,8 @@
 "use client";
 
 import { PlaidLink } from "@/components/plaid/plaid-link";
+import { TransactionsWidget } from "@/components/dashboard/transactions-widget";
+import { AccountsWidget } from "@/components/dashboard/accounts-widget";
 
 export default function DashboardPage() {
   return (
@@ -34,6 +36,9 @@ export default function DashboardPage() {
 
       {/* Widgets Section - matches Midday's structure */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Accounts Widget */}
+        <AccountsWidget />
+
         {/* Spending Widget */}
         <div className="border border-border rounded-lg p-6">
           <h3 className="text-sm font-medium mb-4">Spending</h3>
@@ -67,12 +72,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Transactions Widget */}
-        <div className="border border-border rounded-lg p-6">
-          <h3 className="text-sm font-medium mb-4">Recent Transactions</h3>
-          <div className="h-[200px] flex items-center justify-center bg-muted/5 rounded-md">
-            <p className="text-sm text-muted-foreground">Transaction list</p>
-          </div>
-        </div>
+        <TransactionsWidget />
 
         {/* Invoices Widget */}
         <div className="border border-border rounded-lg p-6">

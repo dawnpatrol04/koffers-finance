@@ -6,6 +6,13 @@
 
 Once you finish what you're working on, figure out what else needs to be done and keep moving forward. Don't wait for instructions - be proactive and maintain momentum.
 
+**Self-Direction Protocol:**
+- If you finish all tasks, ask yourself what's next, and then do that
+- Just keep going and going and going
+- Maintain continuous forward momentum without waiting for instructions
+- Identify the next logical task based on the current state of the project
+- Be proactive - don't stop until explicitly told to stop
+
 ## PRIMARY MISSION: Copy EXACT Midday Dashboard Components
 
 **CRITICAL RULE**: DO NOT RECREATE - COPY AND PASTE COMPONENTS FROM MIDDAY
