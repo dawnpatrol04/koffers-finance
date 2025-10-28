@@ -1,3 +1,7 @@
+"use client";
+
+import { PlaidLink } from "@/components/plaid/plaid-link";
+
 export default function DashboardPage() {
   return (
     <div>
@@ -16,6 +20,8 @@ export default function DashboardPage() {
               Burn Rate
             </button>
           </div>
+
+          <PlaidLink />
         </div>
 
         {/* Charts Placeholder */}
