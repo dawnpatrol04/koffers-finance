@@ -16,7 +16,7 @@ export const plaidClient = new PlaidApi(configuration);
 
 // Helper to get products array
 export const getPlaidProducts = (): Products[] => {
-  const products = ['transactions', 'auth', 'balance'];
+  const products = ['transactions'];
   return products as Products[];
 };
 

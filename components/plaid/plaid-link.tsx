@@ -38,7 +38,7 @@ export function PlaidLink({ onSuccess }: PlaidLinkProps) {
     async (public_token: string) => {
       try {
         // Exchange public token for access token
-        const response = await fetch('/api/plaid/exchange-token', {
+        const exchangeResponse = await fetch('/api/plaid/exchange-token', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -47,14 +47,24 @@ export function PlaidLink({ onSuccess }: PlaidLinkProps) {
           }),
         });
 
-        const data = await response.json();
-        console.log('Bank account connected!', data);
+        const exchangeData = await exchangeResponse.json();
+        console.log('✅ Bank account connected!', exchangeData);
+
+        // Fetch transactions and accounts data
+        const fetchResponse = await fetch('/api/plaid/fetch-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: user?.$id }),
+        });
+
+        const fetchData = await fetchResponse.json();
+        console.log('✅ Data fetched!', fetchData);
 
         if (onSuccess) {
           onSuccess();
         }
       } catch (error) {
-        console.error('Error exchanging token:', error);
+        console.error('Error in Plaid flow:', error);
       }
     },
     [user?.$id, onSuccess]

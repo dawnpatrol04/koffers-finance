@@ -37,6 +37,12 @@ export { client };
 // Database configuration
 export const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_db';
 export const COLLECTIONS = {
+  PLAID_ITEMS: 'plaid_items',
+  PLAID_ACCOUNTS: 'plaid_accounts',
+  PLAID_TRANSACTIONS: 'plaid_transactions',
   BANK_CONNECTIONS: 'bank_connections',
   BANK_ACCOUNTS: 'bank_accounts',
 } as const;
+
+// Export ID helper
+export { ID } from 'node-appwrite';
