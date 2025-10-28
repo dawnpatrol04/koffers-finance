@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
+import Link from 'next/link';
 
 interface Transaction {
   $id: string;
@@ -86,7 +87,12 @@ export function TransactionsWidget() {
 
   return (
     <div className="border border-border rounded-lg p-6">
-      <h3 className="text-sm font-medium mb-4">Recent Transactions</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-sm font-medium">Recent Transactions</h3>
+        <Link href="/dashboard/transactions" className="text-xs text-primary hover:underline">
+          View all
+        </Link>
+      </div>
       <div className="space-y-3">
         {transactions.map((transaction) => {
           const categories = transaction.category ? JSON.parse(transaction.category) : [];
