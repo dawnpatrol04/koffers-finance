@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { plaidClient } from '@/lib/plaid';
+import { plaidClient, plaidClientId, plaidSecret } from '@/lib/plaid';
 import { createServerClient } from '@/lib/appwrite-server';
 
 export async function POST(request: NextRequest) {
@@ -16,6 +16,8 @@ export async function POST(request: NextRequest) {
 
     // Exchange public token for access token
     const response = await plaidClient.itemPublicTokenExchange({
+      client_id: plaidClientId,
+      secret: plaidSecret,
       public_token,
     });
 
@@ -31,10 +33,11 @@ export async function POST(request: NextRequest) {
       access_token,
       item_id,
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error exchanging token:', error);
+    console.error('Plaid error response:', error.response?.data);
     return NextResponse.json(
-      { error: 'Failed to exchange token' },
+      { error: error.response?.data || error.message || 'Failed to exchange token' },
       { status: 500 }
     );
   }
