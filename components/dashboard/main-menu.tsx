@@ -7,96 +7,96 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const icons = {
-  "/": () => <Icons.Overview size={20} />,
-  "/transactions": () => <Icons.Transactions size={20} />,
-  "/invoices": () => <Icons.Invoice size={20} />,
-  "/tracker": () => <Icons.Tracker size={20} />,
-  "/customers": () => <Icons.Customers size={20} />,
-  "/vault": () => <Icons.Vault size={20} />,
-  "/settings": () => <Icons.Settings size={20} />,
-  "/apps": () => <Icons.Apps size={20} />,
-  "/inbox": () => <Icons.Inbox2 size={20} />,
-  "/chat": () => <Icons.Chat size={20} />,
-  "/blog": () => <Icons.Blog size={20} />,
+  "/dashboard": () => <Icons.Overview size={20} />,
+  "/dashboard/transactions": () => <Icons.Transactions size={20} />,
+  "/dashboard/invoices": () => <Icons.Invoice size={20} />,
+  "/dashboard/tracker": () => <Icons.Tracker size={20} />,
+  "/dashboard/customers": () => <Icons.Customers size={20} />,
+  "/dashboard/vault": () => <Icons.Vault size={20} />,
+  "/dashboard/settings": () => <Icons.Settings size={20} />,
+  "/dashboard/apps": () => <Icons.Apps size={20} />,
+  "/dashboard/inbox": () => <Icons.Inbox2 size={20} />,
+  "/dashboard/chat": () => <Icons.Chat size={20} />,
+  "/dashboard/blog": () => <Icons.Blog size={20} />,
 } as const;
 
 const items = [
   {
-    path: "/",
+    path: "/dashboard",
     name: "Overview",
   },
   {
-    path: "/inbox",
+    path: "/dashboard/inbox",
     name: "Inbox",
-    children: [{ path: "/inbox/settings", name: "Settings" }],
+    children: [{ path: "/dashboard/inbox/settings", name: "Settings" }],
   },
   {
-    path: "/chat",
+    path: "/dashboard/chat",
     name: "Chat",
   },
   {
-    path: "/blog",
+    path: "/dashboard/blog",
     name: "Blog",
   },
   {
-    path: "/transactions",
+    path: "/dashboard/transactions",
     name: "Transactions",
     children: [
       {
-        path: "/transactions/categories",
+        path: "/dashboard/transactions/categories",
         name: "Categories",
       },
       {
-        path: "/transactions?step=connect",
+        path: "/dashboard/transactions?step=connect",
         name: "Connect bank",
       },
       {
-        path: "/transactions?step=import&hide=true",
+        path: "/dashboard/transactions?step=import&hide=true",
         name: "Import",
       },
-      { path: "/transactions?createTransaction=true", name: "Create new" },
+      { path: "/dashboard/transactions?createTransaction=true", name: "Create new" },
     ],
   },
   {
-    path: "/invoices",
+    path: "/dashboard/invoices",
     name: "Invoices",
     children: [
-      { path: "/invoices/products", name: "Products" },
-      { path: "/invoices?type=create", name: "Create new" },
+      { path: "/dashboard/invoices/products", name: "Products" },
+      { path: "/dashboard/invoices?type=create", name: "Create new" },
     ],
   },
   {
-    path: "/tracker",
+    path: "/dashboard/tracker",
     name: "Tracker",
-    children: [{ path: "/tracker?create=true", name: "Create new" }],
+    children: [{ path: "/dashboard/tracker?create=true", name: "Create new" }],
   },
   {
-    path: "/customers",
+    path: "/dashboard/customers",
     name: "Customers",
-    children: [{ path: "/customers?createCustomer=true", name: "Create new" }],
+    children: [{ path: "/dashboard/customers?createCustomer=true", name: "Create new" }],
   },
   {
-    path: "/vault",
+    path: "/dashboard/vault",
     name: "Vault",
   },
   {
-    path: "/apps",
+    path: "/dashboard/apps",
     name: "Apps",
     children: [
-      { path: "/apps", name: "All" },
-      { path: "/apps?tab=installed", name: "Installed" },
+      { path: "/dashboard/apps", name: "All" },
+      { path: "/dashboard/apps?tab=installed", name: "Installed" },
     ],
   },
   {
-    path: "/settings",
+    path: "/dashboard/settings",
     name: "Settings",
     children: [
-      { path: "/settings", name: "General" },
-      { path: "/settings/billing", name: "Billing" },
-      { path: "/settings/accounts", name: "Bank Connections" },
-      { path: "/settings/members", name: "Members" },
-      { path: "/settings/notifications", name: "Notifications" },
-      { path: "/settings/developer", name: "Developer" },
+      { path: "/dashboard/settings", name: "General" },
+      { path: "/dashboard/settings/billing", name: "Billing" },
+      { path: "/dashboard/settings/accounts", name: "Bank Connections" },
+      { path: "/dashboard/settings/members", name: "Members" },
+      { path: "/dashboard/settings/notifications", name: "Notifications" },
+      { path: "/dashboard/settings/developer", name: "Developer" },
     ],
   },
 ];
@@ -284,7 +284,6 @@ type Props = {
 
 export function MainMenu({ onSelect, isExpanded = false }: Props) {
   const pathname = usePathname();
-  const part = pathname?.split("/")[1];
   const [expandedItem, setExpandedItem] = useState<string | null>(null);
 
   // Reset expanded item when sidebar expands/collapses
@@ -298,8 +297,8 @@ export function MainMenu({ onSelect, isExpanded = false }: Props) {
         <div className="flex flex-col gap-2">
           {items.map((item) => {
             const isActive =
-              (pathname === "/" && item.path === "/") ||
-              (pathname !== "/" && item.path.startsWith(`/${part}`));
+              pathname === item.path ||
+              (pathname?.startsWith(item.path + "/") && item.path !== "/dashboard");
 
             return (
               <Item
