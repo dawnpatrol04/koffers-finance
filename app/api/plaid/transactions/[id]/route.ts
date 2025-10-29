@@ -23,7 +23,7 @@ export async function GET(
     const response = await databases.listDocuments(
       DATABASE_ID,
       TRANSACTIONS_COLLECTION_ID,
-      [Query.equal("transaction_id", transactionId), Query.limit(1)]
+      [Query.equal("transactionId", transactionId), Query.limit(1)]
     );
 
     if (response.documents.length === 0) {
@@ -38,16 +38,16 @@ export async function GET(
     return NextResponse.json({
       transaction: {
         $id: transaction.$id,
-        transaction_id: transaction.transaction_id,
-        account_id: transaction.account_id,
-        account_name: transaction.account_name,
+        transaction_id: transaction.transactionId,
+        account_id: transaction.accountId,
+        account_name: transaction.accountName,
         amount: transaction.amount,
-        iso_currency_code: transaction.iso_currency_code,
+        iso_currency_code: transaction.isoCurrencyCode,
         date: transaction.date,
         name: transaction.name,
-        merchant_name: transaction.merchant_name,
-        payment_channel: transaction.payment_channel,
-        category: transaction.category,
+        merchant_name: transaction.merchantName,
+        payment_channel: transaction.paymentChannel,
+        category: transaction.category ? JSON.parse(transaction.category) : [],
         pending: transaction.pending,
         $createdAt: transaction.$createdAt,
         $updatedAt: transaction.$updatedAt,
