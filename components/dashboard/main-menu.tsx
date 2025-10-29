@@ -15,9 +15,7 @@ const icons = {
   "/dashboard/vault": () => <Icons.Vault size={20} />,
   "/dashboard/settings": () => <Icons.Settings size={20} />,
   "/dashboard/apps": () => <Icons.Apps size={20} />,
-  "/dashboard/inbox": () => <Icons.Inbox2 size={20} />,
   "/dashboard/chat": () => <Icons.Chat size={20} />,
-  "/dashboard/blog": () => <Icons.Blog size={20} />,
 } as const;
 
 const items = [
@@ -26,17 +24,8 @@ const items = [
     name: "Overview",
   },
   {
-    path: "/dashboard/inbox",
-    name: "Inbox",
-    children: [{ path: "/dashboard/inbox/settings", name: "Settings" }],
-  },
-  {
     path: "/dashboard/chat",
     name: "Chat",
-  },
-  {
-    path: "/dashboard/blog",
-    name: "Blog",
   },
   {
     path: "/dashboard/transactions",
