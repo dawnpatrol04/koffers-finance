@@ -5,7 +5,8 @@ import { useUser } from '@/contexts/user-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Plus } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Plus, Search } from 'lucide-react';
 
 interface Transaction {
   $id: string;
@@ -28,6 +29,7 @@ export default function TransactionsPage() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!user?.$id) return;
@@ -55,11 +57,22 @@ export default function TransactionsPage() {
   }, [user?.$id]);
 
   const filteredTransactions = transactions.filter(transaction => {
-    if (filter === 'all') return true;
-    if (filter === 'income') return transaction.amount < 0;
-    if (filter === 'expense') return transaction.amount > 0;
-    if (filter === 'pending') return transaction.pending;
-    return true;
+    // Filter by type (all/income/expense/pending)
+    let typeMatch = true;
+    if (filter === 'income') typeMatch = transaction.amount < 0;
+    else if (filter === 'expense') typeMatch = transaction.amount > 0;
+    else if (filter === 'pending') typeMatch = transaction.pending;
+
+    // Filter by search query (merchant name or transaction name)
+    let searchMatch = true;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      searchMatch =
+        transaction.merchantName.toLowerCase().includes(query) ||
+        transaction.name.toLowerCase().includes(query);
+    }
+
+    return typeMatch && searchMatch;
   });
 
   const sortedTransactions = [...filteredTransactions].sort((a, b) => {
@@ -152,6 +165,20 @@ export default function TransactionsPage() {
             <Plus className="w-4 h-4 mr-2" />
             Add Transaction
           </Button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
+          <Input
+            type="text"
+            placeholder="Search transactions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
         </div>
       </div>
 
