@@ -2,6 +2,8 @@
 
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
+import { TransactionSheet } from "@/components/sheets/transaction-sheet";
+import { Suspense } from "react";
 
 export default function DashboardLayout({
   children,
@@ -19,6 +21,11 @@ export default function DashboardLayout({
           {children}
         </main>
       </div>
+
+      {/* Global sheets - wrapped in Suspense for SSR */}
+      <Suspense fallback={null}>
+        <TransactionSheet />
+      </Suspense>
     </div>
   );
 }

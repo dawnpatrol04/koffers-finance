@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 interface Transaction {
   $id: string;
@@ -19,6 +20,7 @@ interface Transaction {
 
 export default function TransactionsPage() {
   const { user } = useUser();
+  const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -210,7 +212,11 @@ export default function TransactionsPage() {
               const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
 
               return (
-                <tr key={transaction.$id} className="border-b border-border last:border-0 hover:bg-muted/30">
+                <tr
+                  key={transaction.$id}
+                  onClick={() => router.push(`/dashboard/transactions?transactionId=${transaction.transactionId}`)}
+                  className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
+                >
                   <td className="p-4 text-sm">
                     <div>{new Date(transaction.date).toLocaleDateString()}</div>
                     {transaction.pending && (

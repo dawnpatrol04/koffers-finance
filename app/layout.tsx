@@ -2,6 +2,7 @@ import './globals.css';
 import type { Metadata } from 'next';
 import { UserProvider } from '@/contexts/user-context';
 import { QueryProvider } from '@/contexts/query-provider';
+import { NuqsAdapter } from 'nuqs/adapters/next/app';
 
 export const metadata: Metadata = {
   title: 'Koffers - Personal Finance',
@@ -17,7 +18,9 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <QueryProvider>
-          <UserProvider>{children}</UserProvider>
+          <UserProvider>
+            <NuqsAdapter>{children}</NuqsAdapter>
+          </UserProvider>
         </QueryProvider>
       </body>
     </html>
