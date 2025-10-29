@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Plus } from 'lucide-react';
 
 interface Transaction {
   $id: string;
@@ -139,8 +141,17 @@ export default function TransactionsPage() {
 
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">Transactions</h1>
-        <div className="text-sm text-muted-foreground">
-          {sortedTransactions.length} transactions
+        <div className="flex items-center gap-4">
+          <div className="text-sm text-muted-foreground">
+            {sortedTransactions.length} transactions
+          </div>
+          <Button
+            onClick={() => router.push('/dashboard/transactions?createTransaction=true')}
+            size="sm"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Add Transaction
+          </Button>
         </div>
       </div>
 

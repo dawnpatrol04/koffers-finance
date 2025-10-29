@@ -3,6 +3,7 @@
 import { Sidebar } from "@/components/dashboard/sidebar";
 import { Header } from "@/components/dashboard/header";
 import { TransactionSheet } from "@/components/sheets/transaction-sheet";
+import { TransactionCreateSheet } from "@/components/sheets/transaction-create-sheet";
 import { Suspense } from "react";
 
 export default function DashboardLayout({
@@ -25,6 +26,7 @@ export default function DashboardLayout({
       {/* Global sheets - wrapped in Suspense for SSR */}
       <Suspense fallback={null}>
         <TransactionSheet />
+        <TransactionCreateSheet />
       </Suspense>
     </div>
   );
