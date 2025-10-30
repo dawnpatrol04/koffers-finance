@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
 
       case 'notifications/initialized':
         // Client notifies server that initialization is complete
-        // No response needed for notifications
+        // MCP protocol requires 204 No Content response for notifications
         return new NextResponse(null, { status: 204 });
 
       case 'tools/list':
