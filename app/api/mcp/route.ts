@@ -180,20 +180,24 @@ export async function POST(request: NextRequest) {
             );
 
             return NextResponse.json({
-              content: [{
-                type: 'text',
-                text: JSON.stringify({
-                  accounts: accountsResponse.documents.map((acc: any) => ({
-                    id: acc.$id,
-                    name: acc.name,
-                    type: acc.type,
-                    subtype: acc.subtype,
-                    balance: acc.balances?.current || 0,
-                    currency: acc.balances?.iso_currency_code || 'USD'
-                  })),
-                  total: accountsResponse.total
-                }, null, 2)
-              }]
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    accounts: accountsResponse.documents.map((acc: any) => ({
+                      id: acc.$id,
+                      name: acc.name,
+                      type: acc.type,
+                      subtype: acc.subtype,
+                      balance: acc.balances?.current || 0,
+                      currency: acc.balances?.iso_currency_code || 'USD'
+                    })),
+                    total: accountsResponse.total
+                  }, null, 2)
+                }]
+              }
             });
 
           case 'get_transactions':
@@ -225,21 +229,25 @@ export async function POST(request: NextRequest) {
             );
 
             return NextResponse.json({
-              content: [{
-                type: 'text',
-                text: JSON.stringify({
-                  transactions: transactionsResponse.documents.map((txn: any) => ({
-                    id: txn.$id,
-                    date: txn.date,
-                    name: txn.name,
-                    amount: txn.amount,
-                    category: txn.category,
-                    merchantName: txn.merchantName,
-                    pending: txn.pending
-                  })),
-                  total: transactionsResponse.total
-                }, null, 2)
-              }]
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    transactions: transactionsResponse.documents.map((txn: any) => ({
+                      id: txn.$id,
+                      date: txn.date,
+                      name: txn.name,
+                      amount: txn.amount,
+                      category: txn.category,
+                      merchantName: txn.merchantName,
+                      pending: txn.pending
+                    })),
+                    total: transactionsResponse.total
+                  }, null, 2)
+                }]
+              }
             });
 
           case 'get_spending_summary':
@@ -270,20 +278,24 @@ export async function POST(request: NextRequest) {
             });
 
             return NextResponse.json({
-              content: [{
-                type: 'text',
-                text: JSON.stringify({
-                  period: { startDate, endDate },
-                  totalSpending,
-                  categories: Object.entries(categoryTotals)
-                    .map(([category, amount]) => ({
-                      category,
-                      amount,
-                      percentage: ((amount / totalSpending) * 100).toFixed(2) + '%'
-                    }))
-                    .sort((a, b) => b.amount - a.amount)
-                }, null, 2)
-              }]
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    period: { startDate, endDate },
+                    totalSpending,
+                    categories: Object.entries(categoryTotals)
+                      .map(([category, amount]) => ({
+                        category,
+                        amount,
+                        percentage: ((amount / totalSpending) * 100).toFixed(2) + '%'
+                      }))
+                      .sort((a, b) => b.amount - a.amount)
+                  }, null, 2)
+                }]
+              }
             });
 
           default:
