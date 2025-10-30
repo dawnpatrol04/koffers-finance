@@ -1,24 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
-import { cookies } from 'next/headers';
-
-// Get current user ID from session
-async function getCurrentUserId(): Promise<string | null> {
-  try {
-    const cookieStore = await cookies();
-    const session = cookieStore.get('session');
-
-    if (!session) {
-      return null;
-    }
-
-    const sessionData = JSON.parse(session.value);
-    return sessionData.userId || null;
-  } catch (error) {
-    console.error('Error getting user ID:', error);
-    return null;
-  }
-}
 
 // DELETE /api/keys/[keyId] - Delete an API key
 export async function DELETE(
@@ -26,10 +7,11 @@ export async function DELETE(
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
-    const userId = await getCurrentUserId();
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
     const { keyId } = await params;

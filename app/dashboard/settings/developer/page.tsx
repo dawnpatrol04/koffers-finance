@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/ui/icons";
+import { useUser } from "@/contexts/user-context";
 import type { Metadata } from "next";
 
 interface APIKey {
@@ -22,6 +23,7 @@ interface APIKey {
 }
 
 export default function DeveloperSettings() {
+  const { user } = useUser();
   const [keys, setKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
@@ -30,13 +32,17 @@ export default function DeveloperSettings() {
   const [newKeyValue, setNewKeyValue] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchKeys();
-  }, []);
+    if (user?.$id) {
+      fetchKeys();
+    }
+  }, [user?.$id]);
 
   const fetchKeys = async () => {
+    if (!user?.$id) return;
+
     try {
       setLoading(true);
-      const response = await fetch('/api/keys');
+      const response = await fetch(`/api/keys?userId=${user.$id}`);
       const data = await response.json();
       if (data.keys) {
         setKeys(data.keys);
@@ -54,12 +60,17 @@ export default function DeveloperSettings() {
       return;
     }
 
+    if (!user?.$id) {
+      alert('User not authenticated');
+      return;
+    }
+
     try {
       setCreating(true);
       const response = await fetch('/api/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: keyName }),
+        body: JSON.stringify({ userId: user.$id, name: keyName }),
       });
 
       const data = await response.json();
@@ -85,8 +96,13 @@ export default function DeveloperSettings() {
       return;
     }
 
+    if (!user?.$id) {
+      alert('User not authenticated');
+      return;
+    }
+
     try {
-      await fetch(`/api/keys/${keyId}`, { method: 'DELETE' });
+      await fetch(`/api/keys/${keyId}?userId=${user.$id}`, { method: 'DELETE' });
       fetchKeys(); // Refresh the list
     } catch (error) {
       console.error('Error deleting API key:', error);

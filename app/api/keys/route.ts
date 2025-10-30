@@ -2,33 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { databases, DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import { nanoid } from 'nanoid';
-import { cookies } from 'next/headers';
-
-// Get current user ID from session
-async function getCurrentUserId(): Promise<string | null> {
-  try {
-    const cookieStore = await cookies();
-    const session = cookieStore.get('session');
-
-    if (!session) {
-      return null;
-    }
-
-    const sessionData = JSON.parse(session.value);
-    return sessionData.userId || null;
-  } catch (error) {
-    console.error('Error getting user ID:', error);
-    return null;
-  }
-}
 
 // GET /api/keys - List all API keys for the current user
 export async function GET(request: NextRequest) {
   try {
-    const userId = await getCurrentUserId();
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
 
     const keys = await databases.listDocuments(
@@ -57,14 +39,12 @@ export async function GET(request: NextRequest) {
 // POST /api/keys - Create a new API key
 export async function POST(request: NextRequest) {
   try {
-    const userId = await getCurrentUserId();
+    const body = await request.json();
+    const { userId, name, expiresInDays } = body;
 
     if (!userId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
     }
-
-    const body = await request.json();
-    const { name, expiresInDays } = body;
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
