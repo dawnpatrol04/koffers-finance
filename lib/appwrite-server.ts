@@ -42,6 +42,7 @@ export const COLLECTIONS = {
   PLAID_TRANSACTIONS: 'plaid_transactions',
   BANK_CONNECTIONS: 'bank_connections',
   BANK_ACCOUNTS: 'bank_accounts',
+  API_KEYS: 'api_keys',
 } as const;
 
 // Export ID helper
