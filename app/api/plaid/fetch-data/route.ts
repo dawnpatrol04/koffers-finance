@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
     const results = {
       accountsAdded: 0,
       transactionsAdded: 0,
+      transactionsUpdated: 0,
       errors: [] as string[]
     };
 
@@ -113,30 +114,74 @@ export async function POST(request: NextRequest) {
 
         console.log(`💰 Fetched ${allTransactions.length} transactions for item ${item.itemId}`);
 
-        // Store transactions
+        // Store transactions with duplicate detection and progress tracking
+        const totalTransactions = allTransactions.length;
+        let processedCount = 0;
+
         for (const transaction of allTransactions) {
+          processedCount++;
+
+          // Log progress every 50 transactions
+          if (processedCount % 50 === 0 || processedCount === totalTransactions) {
+            console.log(`📊 Progress: ${processedCount}/${totalTransactions} transactions processed (${Math.round(processedCount/totalTransactions*100)}%)`);
+          }
           try {
-            await databases.createDocument(
+            // Check if transaction already exists
+            const existingTransaction = await databases.listDocuments(
               DATABASE_ID,
               COLLECTIONS.PLAID_TRANSACTIONS,
-              ID.unique(),
-              {
-                userId,
-                accountId: transaction.account_id,
-                transactionId: transaction.transaction_id,
-                date: transaction.date,
-                name: transaction.name,
-                merchantName: transaction.merchant_name || transaction.name,
-                amount: transaction.amount,
-                isoCurrencyCode: transaction.iso_currency_code || 'USD',
-                pending: transaction.pending || false,
-                category: JSON.stringify(transaction.category || []),
-                categoryId: transaction.category_id || '',
-                paymentChannel: transaction.payment_channel,
-                rawData: JSON.stringify(transaction)
-              }
+              [
+                Query.equal('userId', userId),
+                Query.equal('transactionId', transaction.transaction_id),
+                Query.limit(1)
+              ]
             );
-            results.transactionsAdded++;
+
+            if (existingTransaction.documents.length > 0) {
+              // Transaction already exists, update it instead (in case data changed)
+              await databases.updateDocument(
+                DATABASE_ID,
+                COLLECTIONS.PLAID_TRANSACTIONS,
+                existingTransaction.documents[0].$id,
+                {
+                  date: transaction.date,
+                  name: transaction.name,
+                  merchantName: transaction.merchant_name || transaction.name,
+                  amount: transaction.amount,
+                  isoCurrencyCode: transaction.iso_currency_code || 'USD',
+                  pending: transaction.pending || false,
+                  category: JSON.stringify(transaction.category || []),
+                  categoryId: transaction.category_id || '',
+                  paymentChannel: transaction.payment_channel,
+                  rawData: JSON.stringify(transaction)
+                }
+              );
+              results.transactionsUpdated++;
+              console.log(`🔄 Updated existing transaction ${transaction.transaction_id}`);
+            } else {
+              // New transaction, create it
+              await databases.createDocument(
+                DATABASE_ID,
+                COLLECTIONS.PLAID_TRANSACTIONS,
+                ID.unique(),
+                {
+                  userId,
+                  accountId: transaction.account_id,
+                  transactionId: transaction.transaction_id,
+                  date: transaction.date,
+                  name: transaction.name,
+                  merchantName: transaction.merchant_name || transaction.name,
+                  amount: transaction.amount,
+                  isoCurrencyCode: transaction.iso_currency_code || 'USD',
+                  pending: transaction.pending || false,
+                  category: JSON.stringify(transaction.category || []),
+                  categoryId: transaction.category_id || '',
+                  paymentChannel: transaction.payment_channel,
+                  rawData: JSON.stringify(transaction)
+                }
+              );
+              results.transactionsAdded++;
+            }
           } catch (error: any) {
             console.error(`Error storing transaction ${transaction.transaction_id}:`, error.message);
             results.errors.push(`Transaction ${transaction.transaction_id}: ${error.message}`);
