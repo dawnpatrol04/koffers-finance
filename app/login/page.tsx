@@ -3,9 +3,27 @@
 import { EmailSignIn } from "@/components/auth/email-signin";
 import { GoogleSignIn } from "@/components/auth/google-signin";
 import { GitHubSignIn } from "@/components/auth/github-signin";
+import { useUser } from "@/contexts/user-context";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import Link from "next/link";
 
 export default function LoginPage() {
+  const { user, loading } = useUser();
+  const router = useRouter();
+
+  // Redirect to dashboard if user is already logged in
+  useEffect(() => {
+    if (!loading && user) {
+      router.push("/dashboard");
+    }
+  }, [user, loading, router]);
+
+  // Show nothing while checking session or if user exists
+  if (loading || user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <div className="w-full max-w-md">
