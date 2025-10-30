@@ -241,6 +241,41 @@ async function syncTransactions(
 
     console.log(`✅ Webhook sync complete: ${added} added, ${updated} updated`);
 
+    // Auto-categorize new transactions in background
+    if (added > 0) {
+      // Get IDs of newly added transactions (those without aiCategorized flag)
+      // Note: We'll just categorize recent transactions since Appwrite doesn't easily query for null fields
+      const recentTransactions = await databases.listDocuments(
+        DATABASE_ID,
+        COLLECTIONS.PLAID_TRANSACTIONS,
+        [
+          Query.equal('userId', userId),
+          Query.orderDesc('$createdAt'),
+          Query.limit(added) // Just categorize the transactions we just added
+        ]
+      );
+
+      // Filter to only uncategorized ones
+      const uncategorizedTransactions = recentTransactions.documents.filter(
+        doc => !doc.aiCategorized
+      );
+
+      if (uncategorizedTransactions.length > 0) {
+        const transactionIds = uncategorizedTransactions.map(doc => doc.$id);
+
+        console.log(`🤖 Triggering AI categorization for ${transactionIds.length} transactions`);
+
+        // Call categorization API asynchronously (fire and forget)
+        fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/ai/categorize-transaction`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ transactionIds })
+        }).catch(error => {
+          console.error('Error triggering auto-categorization:', error);
+        });
+      }
+    }
+
   } catch (error: any) {
     console.error('❌ Error syncing transactions from webhook:', error);
     throw error;
