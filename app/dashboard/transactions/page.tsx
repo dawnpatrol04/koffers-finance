@@ -22,7 +22,7 @@ interface Transaction {
 }
 
 export default function TransactionsPage() {
-  const { user } = useUser();
+  const { user, loading: userLoading } = useUser();
   const router = useRouter();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
@@ -32,7 +32,15 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    if (!user?.$id) return;
+    // Wait for user context to finish loading
+    if (userLoading) return;
+
+    // If user is not available after loading, show error
+    if (!user?.$id) {
+      setError('User not authenticated');
+      setLoading(false);
+      return;
+    }
 
     const fetchTransactions = async () => {
       try {
@@ -54,7 +62,7 @@ export default function TransactionsPage() {
     };
 
     fetchTransactions();
-  }, [user?.$id]);
+  }, [user?.$id, userLoading]);
 
   const filteredTransactions = transactions.filter(transaction => {
     // Filter by type (all/income/expense/pending)
