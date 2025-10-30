@@ -79,6 +79,22 @@ export async function POST(request: NextRequest) {
 
     // Handle MCP methods
     switch (method) {
+      case 'initialize':
+        return NextResponse.json({
+          jsonrpc: '2.0',
+          id: body.id,
+          result: {
+            protocolVersion: '2024-11-05',
+            capabilities: {
+              tools: {}
+            },
+            serverInfo: {
+              name: 'Koffers Finance MCP',
+              version: '1.0.0'
+            }
+          }
+        });
+
       case 'tools/list':
         return NextResponse.json({
           tools: [
