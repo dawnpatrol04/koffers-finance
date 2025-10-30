@@ -102,7 +102,10 @@ export async function POST(request: NextRequest) {
 
       case 'tools/list':
         return NextResponse.json({
-          tools: [
+          jsonrpc: '2.0',
+          id: body.id,
+          result: {
+            tools: [
             {
               name: 'get_accounts',
               description: 'Get all connected bank accounts with current balances',
@@ -161,6 +164,7 @@ export async function POST(request: NextRequest) {
               }
             }
           ]
+          }
         });
 
       case 'tools/call':
