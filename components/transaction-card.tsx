@@ -30,11 +30,12 @@ export function TransactionCard({
     <>
       <div
         className={cn(
-          "border-2 rounded-lg transition-all duration-200",
-          // COMPLETE = solid, dark, confident | INCOMPLETE = soft dashed, faded
-          isComplete
-            ? "bg-card border-border shadow-sm"
-            : "bg-card/50 border-dashed border-muted-foreground/20",
+          "rounded-lg transition-all duration-200",
+          // COMPLETE (has receipt items) = solid, dark, confident border
+          // INCOMPLETE (no receipt items) = very light dashed, almost invisible
+          hasReceiptItems
+            ? "bg-card border-2 border-border shadow-sm"
+            : "bg-card/50 border border-dashed border-muted-foreground/10",
         )}
       >
         <div className={cn("p-4", hasReceiptItems && "pb-3")}>
@@ -44,12 +45,12 @@ export function TransactionCard({
                 {!transaction.isReviewed && (
                   <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" title="Unread" />
                 )}
-                {/* REVERSED: Complete = small/muted, Incomplete = large/bold */}
+                {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/muted */}
                 <h3 className={cn(
                   "font-semibold",
                   hasReceiptItems
-                    ? "text-xs text-muted-foreground/70"
-                    : "text-lg text-foreground"
+                    ? "text-base text-foreground"
+                    : "text-sm text-muted-foreground/50"
                 )}>
                   {transaction.merchant}
                 </h3>
@@ -79,8 +80,8 @@ export function TransactionCard({
                 className={cn(
                   "flex items-center gap-2",
                   hasReceiptItems
-                    ? "text-xs text-muted-foreground/60"
-                    : "text-sm text-muted-foreground"
+                    ? "text-sm text-muted-foreground"
+                    : "text-xs text-muted-foreground/50"
                 )}
               >
                 <span>{transaction.date}</span>
@@ -101,13 +102,13 @@ export function TransactionCard({
               )}
             </div>
 
-            {/* REVERSED: Complete = small/muted, Incomplete = large/bold */}
+            {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/muted */}
             <span
               className={cn(
-                "font-semibold text-destructive whitespace-nowrap",
+                "font-semibold whitespace-nowrap",
                 hasReceiptItems
-                  ? "text-sm text-muted-foreground/70"
-                  : "text-lg text-foreground",
+                  ? "text-base text-foreground"
+                  : "text-sm text-muted-foreground/50",
               )}
             >
               {transaction.amount < 0 ? "-" : ""}${Math.abs(transaction.amount).toFixed(2)}
