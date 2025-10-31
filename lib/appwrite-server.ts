@@ -35,16 +35,25 @@ export const users = new Users(client);
 export { client };
 
 // Database configuration
-export const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_db';
+export const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc';
 export const COLLECTIONS = {
-  PLAID_ITEMS: 'plaid_items',
-  PLAID_ACCOUNTS: 'plaid_accounts',
-  PLAID_TRANSACTIONS: 'plaid_transactions',
-  BANK_CONNECTIONS: 'bank_connections',
-  BANK_ACCOUNTS: 'bank_accounts',
-  API_KEYS: 'api_keys',
+  // Core collections
+  ACCOUNTS: 'accounts',
+  CATEGORIES: 'categories',
+  TAGS: 'tags',
+  TRANSACTIONS: 'transactions',
+  RECEIPT_ITEMS: 'receiptItems',
+  REMINDERS: 'reminders',
   FILES: 'files',
-  TRANSACTION_ENRICHMENT: 'transaction_enrichment',
+
+  // Join tables
+  TRANSACTION_TAGS: 'transactionTags',
+  ITEM_TAGS: 'itemTags',
+  FILE_TAGS: 'fileTags',
+
+  // Plaid integration
+  PLAID_ITEMS: 'plaidItems',
+  PLAID_TRANSACTIONS: 'plaidTransactions',
 } as const;
 
 // Storage bucket IDs

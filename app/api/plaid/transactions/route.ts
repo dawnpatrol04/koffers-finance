@@ -15,12 +15,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch recent transactions for this user
+    // Fetch recent transactions for this user from the transactions collection
+    // Note: plaidTransactions is a staging area, actual user transactions go in 'transactions' collection
     const transactionsResponse = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PLAID_TRANSACTIONS,
+      COLLECTIONS.TRANSACTIONS,
       [
-        Query.equal('userId', userId),
         Query.orderDesc('date'),
         Query.limit(limit)
       ]
