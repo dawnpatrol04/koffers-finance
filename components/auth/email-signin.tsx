@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { account } from "@/lib/appwrite";
 import { useRouter } from "next/navigation";
+import { useUser } from "@/contexts/user-context";
 
 export function EmailSignIn() {
   const [isOpen, setIsOpen] = useState(false);
@@ -11,6 +12,7 @@ export function EmailSignIn() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const { refreshUser } = useUser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,6 +28,10 @@ export function EmailSignIn() {
         // Sign in
         await account.createEmailPasswordSession(email, password);
       }
+
+      // CRITICAL FIX: Refresh user context BEFORE navigation
+      // This ensures UserContext has the latest session before we navigate
+      await refreshUser();
 
       router.push("/dashboard");
     } catch (error) {
