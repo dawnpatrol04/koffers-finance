@@ -43,6 +43,12 @@ export const COLLECTIONS = {
   BANK_CONNECTIONS: 'bank_connections',
   BANK_ACCOUNTS: 'bank_accounts',
   API_KEYS: 'api_keys',
+  FILES: 'files',
+} as const;
+
+// Storage bucket IDs
+export const STORAGE_BUCKETS = {
+  FILES: 'files',
 } as const;
 
 // Export ID helper

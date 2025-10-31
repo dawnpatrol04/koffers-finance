@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 const icons = {
   "/dashboard": () => <Icons.Overview size={20} />,
   "/dashboard/transactions": () => <Icons.Transactions size={20} />,
+  "/dashboard/files": () => <Icons.Files size={20} />,
   "/dashboard/invoices": () => <Icons.Invoice size={20} />,
   "/dashboard/tracker": () => <Icons.Tracker size={20} />,
   "/dashboard/customers": () => <Icons.Customers size={20} />,
@@ -45,6 +46,10 @@ const items = [
       },
       { path: "/dashboard/transactions?createTransaction=true", name: "Create new" },
     ],
+  },
+  {
+    path: "/dashboard/files",
+    name: "Files",
   },
   {
     path: "/dashboard/invoices",
