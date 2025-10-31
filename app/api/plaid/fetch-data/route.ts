@@ -47,29 +47,40 @@ export async function POST(request: NextRequest) {
 
         console.log(`📦 Fetched ${accountsResponse.data.accounts.length} accounts for item ${item.itemId}`);
 
-        // Store accounts
+        // Store accounts in the new 'accounts' collection
         for (const account of accountsResponse.data.accounts) {
           try {
-            await databases.createDocument(
+            // Check if account already exists
+            const existingAccount = await databases.listDocuments(
               DATABASE_ID,
-              COLLECTIONS.PLAID_ACCOUNTS,
-              ID.unique(),
-              {
-                userId,
-                itemId: item.itemId,
-                accountId: account.account_id,
-                name: account.name,
-                officialName: account.official_name || account.name,
-                type: account.type,
-                subtype: account.subtype || '',
-                mask: account.mask || '',
-                currentBalance: account.balances.current || 0,
-                availableBalance: account.balances.available || 0,
-                isoCurrencyCode: account.balances.iso_currency_code || 'USD',
-                rawData: JSON.stringify(account)
-              }
+              COLLECTIONS.ACCOUNTS,
+              [
+                Query.equal('plaidAccountId', account.account_id),
+                Query.limit(1)
+              ]
             );
-            results.accountsAdded++;
+
+            if (existingAccount.documents.length === 0) {
+              await databases.createDocument(
+                DATABASE_ID,
+                COLLECTIONS.ACCOUNTS,
+                ID.unique(),
+                {
+                  userId,
+                  name: account.official_name || account.name,
+                  type: account.type === 'depository' ? (account.subtype === 'checking' ? 'checking' : 'savings') :
+                        account.type === 'credit' ? 'credit' : 'investment',
+                  institution: item.institutionName || '',
+                  lastFour: account.mask || '',
+                  currentBalance: account.balances.current || 0,
+                  plaidItemId: item.itemId,
+                  plaidAccountId: account.account_id,
+                  isActive: true,
+                  color: '#4285f4' // Default color
+                }
+              );
+              results.accountsAdded++;
+            }
           } catch (error: any) {
             console.error(`Error storing account ${account.account_id}:`, error.message);
             results.errors.push(`Account ${account.account_id}: ${error.message}`);
@@ -126,58 +137,41 @@ export async function POST(request: NextRequest) {
             console.log(`📊 Progress: ${processedCount}/${totalTransactions} transactions processed (${Math.round(processedCount/totalTransactions*100)}%)`);
           }
           try {
-            // Check if transaction already exists
+            // Check if transaction already exists in staging area
             const existingTransaction = await databases.listDocuments(
               DATABASE_ID,
               COLLECTIONS.PLAID_TRANSACTIONS,
               [
-                Query.equal('userId', userId),
-                Query.equal('transactionId', transaction.transaction_id),
+                Query.equal('plaidTransactionId', transaction.transaction_id),
                 Query.limit(1)
               ]
             );
 
             if (existingTransaction.documents.length > 0) {
-              // Transaction already exists, update it instead (in case data changed)
+              // Transaction already exists, update rawData
               await databases.updateDocument(
                 DATABASE_ID,
                 COLLECTIONS.PLAID_TRANSACTIONS,
                 existingTransaction.documents[0].$id,
                 {
-                  date: transaction.date,
-                  name: transaction.name,
-                  merchantName: transaction.merchant_name || transaction.name,
-                  amount: transaction.amount,
-                  isoCurrencyCode: transaction.iso_currency_code || 'USD',
-                  pending: transaction.pending || false,
-                  category: JSON.stringify(transaction.category || []),
-                  categoryId: transaction.category_id || '',
-                  paymentChannel: transaction.payment_channel,
                   rawData: JSON.stringify(transaction)
                 }
               );
               results.transactionsUpdated++;
-              console.log(`🔄 Updated existing transaction ${transaction.transaction_id}`);
             } else {
-              // New transaction, create it
+              // New transaction - store in staging area (plaidTransactions)
               await databases.createDocument(
                 DATABASE_ID,
                 COLLECTIONS.PLAID_TRANSACTIONS,
                 ID.unique(),
                 {
                   userId,
-                  accountId: transaction.account_id,
-                  transactionId: transaction.transaction_id,
-                  date: transaction.date,
-                  name: transaction.name,
-                  merchantName: transaction.merchant_name || transaction.name,
-                  amount: transaction.amount,
-                  isoCurrencyCode: transaction.iso_currency_code || 'USD',
-                  pending: transaction.pending || false,
-                  category: JSON.stringify(transaction.category || []),
-                  categoryId: transaction.category_id || '',
-                  paymentChannel: transaction.payment_channel,
-                  rawData: JSON.stringify(transaction)
+                  plaidItemId: item.$id, // Link to plaidItems record
+                  plaidAccountId: transaction.account_id,
+                  plaidTransactionId: transaction.transaction_id,
+                  transactionId: null, // Will be set after processing
+                  rawData: JSON.stringify(transaction),
+                  processed: false
                 }
               );
               results.transactionsAdded++;
