@@ -30,12 +30,8 @@ export function TransactionCard({
     <>
       <div
         className={cn(
-          "rounded-lg transition-all duration-200",
-          // COMPLETE (has receipt items) = solid, dark, confident border
-          // INCOMPLETE (no receipt items) = very light dashed, barely visible
-          hasReceiptItems
-            ? "bg-card border-2 border-border shadow-sm"
-            : "bg-card/30 border border-dashed border-muted-foreground/[0.06]",
+          "border rounded-lg transition-all duration-200",
+          isComplete ? "bg-card border-border" : "bg-card border-dashed border-muted-foreground/30",
         )}
       >
         <div className={cn("p-4", hasReceiptItems && "pb-3")}>
@@ -45,13 +41,14 @@ export function TransactionCard({
                 {!transaction.isReviewed && (
                   <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" title="Unread" />
                 )}
-                {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/very faded */}
-                <h3 className={cn(
-                  "font-semibold",
-                  hasReceiptItems
-                    ? "text-base text-foreground"
-                    : "text-sm text-muted-foreground/30"
-                )}>
+                <h3
+                  className={cn(
+                    "font-semibold transition-all",
+                    hasReceiptItems
+                      ? "text-base text-foreground" // Complete: confident and clear
+                      : "text-base text-muted-foreground/60 font-normal", // Incomplete: de-emphasized, untrusted
+                  )}
+                >
                   {transaction.merchant}
                 </h3>
                 {transaction.status === "pending" && (
@@ -80,8 +77,8 @@ export function TransactionCard({
                 className={cn(
                   "flex items-center gap-2",
                   hasReceiptItems
-                    ? "text-sm text-muted-foreground"
-                    : "text-xs text-muted-foreground/30"
+                    ? "text-xs text-muted-foreground" // Complete: smaller, supporting info
+                    : "text-sm text-muted-foreground/50 font-light", // Incomplete: lighter, untrusted
                 )}
               >
                 <span>{transaction.date}</span>
@@ -102,13 +99,10 @@ export function TransactionCard({
               )}
             </div>
 
-            {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/very faded */}
             <span
               className={cn(
-                "font-semibold whitespace-nowrap",
-                hasReceiptItems
-                  ? "text-base text-foreground"
-                  : "text-sm text-muted-foreground/30",
+                "font-semibold text-destructive whitespace-nowrap",
+                hasReceiptItems ? "text-sm" : "text-base",
               )}
             >
               {transaction.amount < 0 ? "-" : ""}${Math.abs(transaction.amount).toFixed(2)}
@@ -124,32 +118,32 @@ export function TransactionCard({
         </div>
 
         {hasReceiptItems && (
-          <div className="border-t-2 border-border bg-background">
+          <div className="border-t bg-muted/30">
             <div className="p-4 space-y-2">
               {transaction.receiptItems!.map((item, index) => (
                 <div
                   key={item.id}
                   className={cn(
-                    "flex items-center justify-between py-2.5 px-3 rounded-md bg-card border-2 transition-colors",
-                    index === 0 && "border-l-4 border-l-green-600",
+                    "flex items-center justify-between py-2 px-3 rounded-md bg-background border transition-colors",
+                    index === 0 && "border-l-2 border-l-green-500",
                   )}
                 >
                   <div className="flex-1 min-w-0">
-                    <p className="text-base font-semibold text-foreground">{item.name}</p>
-                    <p className="text-sm text-muted-foreground">Qty: {item.quantity}</p>
+                    <p className="text-sm font-medium">{item.name}</p>
+                    <p className="text-xs text-muted-foreground">Qty: {item.quantity}</p>
                   </div>
 
                   <div className="flex items-center gap-2">
                     {item.tags && item.tags.length > 0 && (
                       <div className="flex gap-1">
                         {item.tags.map((tag) => (
-                          <Badge key={tag} variant={tag === "business" ? "default" : "secondary"} className="text-xs font-semibold">
+                          <Badge key={tag} variant={tag === "business" ? "default" : "secondary"} className="text-xs">
                             {tag}
                           </Badge>
                         ))}
                       </div>
                     )}
-                    <span className="text-base font-bold text-foreground whitespace-nowrap">${item.price.toFixed(2)}</span>
+                    <span className="text-sm font-semibold whitespace-nowrap">${item.price.toFixed(2)}</span>
                   </div>
                 </div>
               ))}
