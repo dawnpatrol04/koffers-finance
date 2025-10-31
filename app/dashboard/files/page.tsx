@@ -4,8 +4,10 @@ import { useState, useCallback, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Icons } from "@/components/ui/icons";
 import { MdOutlineGridView, MdOutlineViewList, MdCloudUpload, MdOutlineAdd } from "react-icons/md";
+import { useUser } from "@/contexts/user-context";
 
 export default function FilesPage() {
+  const { user } = useUser();
   const [isDragging, setIsDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [files, setFiles] = useState<any[]>([]);
@@ -14,12 +16,16 @@ export default function FilesPage() {
 
   // Fetch files on mount
   useEffect(() => {
-    fetchFiles();
-  }, []);
+    if (user) {
+      fetchFiles();
+    }
+  }, [user]);
 
   const fetchFiles = async () => {
+    if (!user) return;
+
     try {
-      const response = await fetch("/api/files");
+      const response = await fetch(`/api/files?userId=${user.$id}`);
       if (response.ok) {
         const data = await response.json();
         setFiles(data.files || []);
@@ -55,6 +61,8 @@ export default function FilesPage() {
   }, []);
 
   const uploadFiles = async (filesToUpload: File[]) => {
+    if (!user) return;
+
     setUploading(true);
 
     try {
@@ -62,7 +70,7 @@ export default function FilesPage() {
         const formData = new FormData();
         formData.append("file", file);
 
-        const response = await fetch("/api/files/upload", {
+        const response = await fetch(`/api/files/upload?userId=${user.$id}`, {
           method: "POST",
           body: formData,
         });
@@ -86,12 +94,13 @@ export default function FilesPage() {
   };
 
   const handleDeleteFile = async (fileId: string) => {
+    if (!user) return;
     if (!confirm("Are you sure you want to delete this file?")) {
       return;
     }
 
     try {
-      const response = await fetch(`/api/files/${fileId}`, {
+      const response = await fetch(`/api/files/${fileId}?userId=${user.$id}`, {
         method: "DELETE",
       });
 

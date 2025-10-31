@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage, databases, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-server';
-import { cookies } from 'next/headers';
-import { Query, Client, Account } from 'node-appwrite';
+import { Query } from 'node-appwrite';
 
 export async function DELETE(
   request: NextRequest,
@@ -9,27 +8,15 @@ export async function DELETE(
 ) {
   try {
     const { fileId } = await params;
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
 
-    // Get Appwrite session from cookies
-    const cookieStore = await cookies();
-    const sessionCookie = cookieStore.get('a_session_' + (process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '').toLowerCase());
-
-    if (!sessionCookie) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'userId is required' },
+        { status: 400 }
+      );
     }
-
-    // Create a new client with the session
-    const client = new Client()
-      .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT || '')
-      .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID || '');
-
-    // Set the session from cookie
-    client.setSession(sessionCookie.value);
-
-    // Get current user using the session
-    const accountService = new Account(client);
-    const user = await accountService.get();
-    const userId = user.$id;
 
     // Get file metadata from database
     const fileDocs = await databases.listDocuments(
