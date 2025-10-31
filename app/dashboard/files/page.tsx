@@ -14,14 +14,7 @@ export default function FilesPage() {
   const [viewMode, setViewMode] = useState<"list" | "grid">("list");
   const [loading, setLoading] = useState(true);
 
-  // Fetch files on mount
-  useEffect(() => {
-    if (user) {
-      fetchFiles();
-    }
-  }, [user]);
-
-  const fetchFiles = async () => {
+  const fetchFiles = useCallback(async () => {
     if (!user) return;
 
     try {
@@ -35,7 +28,14 @@ export default function FilesPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
+
+  // Fetch files on mount
+  useEffect(() => {
+    if (user) {
+      fetchFiles();
+    }
+  }, [user, fetchFiles]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -53,7 +53,11 @@ export default function FilesPage() {
 
     const droppedFiles = Array.from(e.dataTransfer.files);
 
-    if (!user) return;
+    if (!user) {
+      alert("Please log in to upload files.");
+      return;
+    }
+
     setUploading(true);
 
     try {
@@ -67,17 +71,20 @@ export default function FilesPage() {
         });
 
         if (!response.ok) {
-          throw new Error("Upload failed");
+          const error = await response.json();
+          console.error("Upload failed:", error);
+          continue; // Continue with next file instead of throwing
         }
 
         const result = await response.json();
         console.log("File uploaded:", result);
       }
 
+      // Always refresh files list after upload attempts
       await fetchFiles();
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Upload failed. Please try again.");
+      // Don't show alert here, will refresh anyway
     } finally {
       setUploading(false);
     }
@@ -86,7 +93,13 @@ export default function FilesPage() {
   const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
 
-    if (!user || selectedFiles.length === 0) return;
+    if (!user) {
+      alert("Please log in to upload files.");
+      return;
+    }
+
+    if (selectedFiles.length === 0) return;
+
     setUploading(true);
 
     try {
@@ -100,17 +113,20 @@ export default function FilesPage() {
         });
 
         if (!response.ok) {
-          throw new Error("Upload failed");
+          const error = await response.json();
+          console.error("Upload failed:", error);
+          continue; // Continue with next file instead of throwing
         }
 
         const result = await response.json();
         console.log("File uploaded:", result);
       }
 
+      // Always refresh files list after upload attempts
       await fetchFiles();
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Upload failed. Please try again.");
+      // Don't show alert here, will refresh anyway
     } finally {
       setUploading(false);
     }
