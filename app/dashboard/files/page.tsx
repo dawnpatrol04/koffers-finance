@@ -52,21 +52,12 @@ export default function FilesPage() {
     setIsDragging(false);
 
     const droppedFiles = Array.from(e.dataTransfer.files);
-    await uploadFiles(droppedFiles);
-  }, []);
 
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
-    await uploadFiles(selectedFiles);
-  }, []);
-
-  const uploadFiles = async (filesToUpload: File[]) => {
     if (!user) return;
-
     setUploading(true);
 
     try {
-      for (const file of filesToUpload) {
+      for (const file of droppedFiles) {
         const formData = new FormData();
         formData.append("file", file);
 
@@ -83,7 +74,6 @@ export default function FilesPage() {
         console.log("File uploaded:", result);
       }
 
-      // Refresh files list
       await fetchFiles();
     } catch (error) {
       console.error("Upload error:", error);
@@ -91,7 +81,40 @@ export default function FilesPage() {
     } finally {
       setUploading(false);
     }
-  };
+  }, [user, fetchFiles]);
+
+  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
+
+    if (!user || selectedFiles.length === 0) return;
+    setUploading(true);
+
+    try {
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(`/api/files/upload?userId=${user.$id}`, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!response.ok) {
+          throw new Error("Upload failed");
+        }
+
+        const result = await response.json();
+        console.log("File uploaded:", result);
+      }
+
+      await fetchFiles();
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Upload failed. Please try again.");
+    } finally {
+      setUploading(false);
+    }
+  }, [user, fetchFiles]);
 
   const handleDeleteFile = async (fileId: string) => {
     if (!user) return;
