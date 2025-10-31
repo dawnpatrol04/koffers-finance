@@ -32,10 +32,10 @@ export function TransactionCard({
         className={cn(
           "rounded-lg transition-all duration-200",
           // COMPLETE (has receipt items) = solid, dark, confident border
-          // INCOMPLETE (no receipt items) = very light dashed, almost invisible
+          // INCOMPLETE (no receipt items) = very light dashed, barely visible
           hasReceiptItems
             ? "bg-card border-2 border-border shadow-sm"
-            : "bg-card/50 border border-dashed border-muted-foreground/10",
+            : "bg-card/30 border border-dashed border-muted-foreground/[0.06]",
         )}
       >
         <div className={cn("p-4", hasReceiptItems && "pb-3")}>
@@ -45,12 +45,12 @@ export function TransactionCard({
                 {!transaction.isReviewed && (
                   <div className="h-2 w-2 rounded-full bg-blue-500 flex-shrink-0" title="Unread" />
                 )}
-                {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/muted */}
+                {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/very faded */}
                 <h3 className={cn(
                   "font-semibold",
                   hasReceiptItems
                     ? "text-base text-foreground"
-                    : "text-sm text-muted-foreground/50"
+                    : "text-sm text-muted-foreground/30"
                 )}>
                   {transaction.merchant}
                 </h3>
@@ -81,7 +81,7 @@ export function TransactionCard({
                   "flex items-center gap-2",
                   hasReceiptItems
                     ? "text-sm text-muted-foreground"
-                    : "text-xs text-muted-foreground/50"
+                    : "text-xs text-muted-foreground/30"
                 )}
               >
                 <span>{transaction.date}</span>
@@ -102,13 +102,13 @@ export function TransactionCard({
               )}
             </div>
 
-            {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/muted */}
+            {/* COMPLETE (has items) = LARGE/BOLD | INCOMPLETE (no items) = small/very faded */}
             <span
               className={cn(
                 "font-semibold whitespace-nowrap",
                 hasReceiptItems
                   ? "text-base text-foreground"
-                  : "text-sm text-muted-foreground/50",
+                  : "text-sm text-muted-foreground/30",
               )}
             >
               {transaction.amount < 0 ? "-" : ""}${Math.abs(transaction.amount).toFixed(2)}
