@@ -162,6 +162,92 @@ export async function POST(request: NextRequest) {
                 },
                 required: []
               }
+            },
+            {
+              name: 'create_enrichment',
+              description: 'Create transaction enrichment with receipt data and user comments',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  transactionId: {
+                    type: 'string',
+                    description: 'ID of the Plaid transaction to enrich'
+                  },
+                  userComment: {
+                    type: 'string',
+                    description: 'User\'s comment/context about this transaction'
+                  },
+                  receiptData: {
+                    type: 'string',
+                    description: 'JSON string containing receipt data (merchant, total, line_items, etc.)'
+                  }
+                },
+                required: ['transactionId']
+              }
+            },
+            {
+              name: 'get_enrichment',
+              description: 'Get enrichment data for a specific transaction',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  transactionId: {
+                    type: 'string',
+                    description: 'ID of the transaction'
+                  }
+                },
+                required: ['transactionId']
+              }
+            },
+            {
+              name: 'update_enrichment',
+              description: 'Update transaction enrichment data',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  enrichmentId: {
+                    type: 'string',
+                    description: 'ID of the enrichment record to update'
+                  },
+                  userComment: {
+                    type: 'string',
+                    description: 'Updated user comment'
+                  },
+                  receiptData: {
+                    type: 'string',
+                    description: 'Updated receipt data JSON string'
+                  }
+                },
+                required: ['enrichmentId']
+              }
+            },
+            {
+              name: 'delete_enrichment',
+              description: 'Delete transaction enrichment data',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  enrichmentId: {
+                    type: 'string',
+                    description: 'ID of the enrichment record to delete'
+                  }
+                },
+                required: ['enrichmentId']
+              }
+            },
+            {
+              name: 'list_enrichments',
+              description: 'List all transaction enrichments for the user',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  limit: {
+                    type: 'number',
+                    description: 'Number of records to return (default: 50)'
+                  }
+                },
+                required: []
+              }
             }
           ]
           }
@@ -293,6 +379,169 @@ export async function POST(request: NextRequest) {
                         percentage: ((amount / totalSpending) * 100).toFixed(2) + '%'
                       }))
                       .sort((a, b) => b.amount - a.amount)
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'create_enrichment':
+            const newEnrichment = await databases.createDocument(
+              DATABASE_ID,
+              COLLECTIONS.TRANSACTION_ENRICHMENT,
+              'unique()',
+              {
+                userId,
+                transactionId: toolArgs.transactionId,
+                userComment: toolArgs.userComment || null,
+                receiptData: toolArgs.receiptData || null,
+                createdAt: new Date().toISOString()
+              }
+            );
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    enrichment: {
+                      id: newEnrichment.$id,
+                      transactionId: newEnrichment.transactionId,
+                      userComment: newEnrichment.userComment,
+                      receiptData: newEnrichment.receiptData ? JSON.parse(newEnrichment.receiptData) : null,
+                      createdAt: newEnrichment.createdAt
+                    }
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'get_enrichment':
+            const enrichments = await databases.listDocuments(
+              DATABASE_ID,
+              COLLECTIONS.TRANSACTION_ENRICHMENT,
+              [
+                Query.equal('userId', userId),
+                Query.equal('transactionId', toolArgs.transactionId),
+                Query.limit(1)
+              ]
+            );
+
+            if (enrichments.documents.length === 0) {
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({ enrichment: null }, null, 2)
+                  }]
+                }
+              });
+            }
+
+            const enrichment = enrichments.documents[0];
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    enrichment: {
+                      id: enrichment.$id,
+                      transactionId: enrichment.transactionId,
+                      userComment: enrichment.userComment,
+                      receiptData: enrichment.receiptData ? JSON.parse(enrichment.receiptData) : null,
+                      createdAt: enrichment.createdAt
+                    }
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'update_enrichment':
+            const updateData: any = {};
+            if (toolArgs.userComment !== undefined) {
+              updateData.userComment = toolArgs.userComment;
+            }
+            if (toolArgs.receiptData !== undefined) {
+              updateData.receiptData = toolArgs.receiptData;
+            }
+
+            const updatedEnrichment = await databases.updateDocument(
+              DATABASE_ID,
+              COLLECTIONS.TRANSACTION_ENRICHMENT,
+              toolArgs.enrichmentId,
+              updateData
+            );
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    enrichment: {
+                      id: updatedEnrichment.$id,
+                      transactionId: updatedEnrichment.transactionId,
+                      userComment: updatedEnrichment.userComment,
+                      receiptData: updatedEnrichment.receiptData ? JSON.parse(updatedEnrichment.receiptData) : null,
+                      createdAt: updatedEnrichment.createdAt
+                    }
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'delete_enrichment':
+            await databases.deleteDocument(
+              DATABASE_ID,
+              COLLECTIONS.TRANSACTION_ENRICHMENT,
+              toolArgs.enrichmentId
+            );
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({ success: true }, null, 2)
+                }]
+              }
+            });
+
+          case 'list_enrichments':
+            const enrichmentsList = await databases.listDocuments(
+              DATABASE_ID,
+              COLLECTIONS.TRANSACTION_ENRICHMENT,
+              [
+                Query.equal('userId', userId),
+                Query.limit(toolArgs.limit || 50),
+                Query.orderDesc('createdAt')
+              ]
+            );
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    enrichments: enrichmentsList.documents.map((e: any) => ({
+                      id: e.$id,
+                      transactionId: e.transactionId,
+                      userComment: e.userComment,
+                      receiptData: e.receiptData ? JSON.parse(e.receiptData) : null,
+                      createdAt: e.createdAt
+                    })),
+                    total: enrichmentsList.total
                   }, null, 2)
                 }]
               }

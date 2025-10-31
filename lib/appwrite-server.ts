@@ -44,6 +44,7 @@ export const COLLECTIONS = {
   BANK_ACCOUNTS: 'bank_accounts',
   API_KEYS: 'api_keys',
   FILES: 'files',
+  TRANSACTION_ENRICHMENT: 'transaction_enrichment',
 } as const;
 
 // Storage bucket IDs
