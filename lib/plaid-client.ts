@@ -15,7 +15,8 @@ if (!process.env.PLAID_SECRET) {
   throw new Error('PLAID_SECRET environment variable is required');
 }
 
-const PLAID_ENV = (process.env.NEXT_PUBLIC_PLAID_ENVIRONMENT ||'sandbox') as 'sandbox' | 'development' | 'production';
+// PRODUCTION ONLY - No sandbox
+const PLAID_ENV = 'production' as const;
 
 // Supported country codes (expand as needed)
 const COUNTRY_CODES: CountryCode[] = [
@@ -54,14 +55,8 @@ export const plaidConfig = {
 };
 
 /**
- * Generate webhook URL based on environment
+ * Generate webhook URL for production
  */
 export function getWebhookUrl(): string {
-  if (PLAID_ENV === 'sandbox' || PLAID_ENV === 'development') {
-    // For local development, you might use ngrok or similar
-    return process.env.PLAID_WEBHOOK_URL || `${process.env.NEXT_PUBLIC_URL}/api/webhook/plaid`;
-  }
-
-  // Production webhook URL
   return `${process.env.NEXT_PUBLIC_URL}/api/webhook/plaid`;
 }

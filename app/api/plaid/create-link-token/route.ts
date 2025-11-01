@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlaidProducts, getCountryCodes } from '@/lib/plaid';
 
-const PLAID_ENV = process.env.PLAID_ENV || 'sandbox';
-const PLAID_BASE_URL = PLAID_ENV === 'production'
-  ? 'https://production.plaid.com'
-  : PLAID_ENV === 'development'
-  ? 'https://development.plaid.com'
-  : 'https://sandbox.plaid.com';
+// PRODUCTION ONLY - No sandbox
+const PLAID_BASE_URL = 'https://production.plaid.com';
 
 export async function POST(request: NextRequest) {
   try {
