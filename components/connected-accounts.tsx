@@ -143,17 +143,12 @@ export function ConnectedAccounts() {
                       <div>
                         <div className="font-medium text-sm">{account.name}</div>
                         <div className="text-xs text-muted-foreground">
-                          {account.subtype || account.type}
-                          {account.mask && ` • •••• ${account.mask}`}
+                          {account.type}
+                          {account.lastFour && ` • •••• ${account.lastFour}`}
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="font-medium">${account.currentBalance.toFixed(2)}</div>
-                        {account.availableBalance !== null && (
-                          <div className="text-xs text-muted-foreground">
-                            ${account.availableBalance.toFixed(2)} available
-                          </div>
-                        )}
+                        <div className="font-medium">${(account.currentBalance || 0).toFixed(2)}</div>
                       </div>
                     </div>
                   ))}

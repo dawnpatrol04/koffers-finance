@@ -5,15 +5,14 @@ import { useUser } from '@/contexts/user-context';
 
 interface Account {
   $id: string;
-  accountId: string;
   name: string;
-  officialName: string;
   type: string;
-  subtype: string;
-  mask: string;
+  institution: string;
+  lastFour: string;
   currentBalance: number;
-  availableBalance: number;
-  isoCurrencyCode: string;
+  plaidItemId: string;
+  plaidAccountId: string;
+  userId: string;
 }
 
 export function AccountsWidget() {
@@ -102,16 +101,11 @@ export function AccountsWidget() {
             <div className="flex-1">
               <div className="text-sm font-medium">{account.name}</div>
               <div className="text-xs text-muted-foreground mt-1">
-                {account.subtype} • •••• {account.mask}
+                {account.type} • •••• {account.lastFour}
               </div>
             </div>
             <div className="text-right">
-              <div className="text-sm font-medium">${account.currentBalance.toFixed(2)}</div>
-              {account.availableBalance !== account.currentBalance && (
-                <div className="text-xs text-muted-foreground">
-                  ${account.availableBalance.toFixed(2)} available
-                </div>
-              )}
+              <div className="text-sm font-medium">${(account.currentBalance || 0).toFixed(2)}</div>
             </div>
           </div>
         ))}
