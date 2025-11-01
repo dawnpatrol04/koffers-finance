@@ -74,9 +74,7 @@ export async function POST(request: NextRequest) {
                   lastFour: account.mask || '',
                   currentBalance: account.balances.current || 0,
                   plaidItemId: item.itemId,
-                  plaidAccountId: account.account_id,
-                  isActive: true,
-                  color: '#4285f4' // Default color
+                  plaidAccountId: account.account_id
                 }
               );
               results.accountsAdded++;
