@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     // Fetch all accounts for this user
     const accountsResponse = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PLAID_ACCOUNTS,
+      COLLECTIONS.ACCOUNTS,
       [Query.equal('userId', userId)]
     );
 
