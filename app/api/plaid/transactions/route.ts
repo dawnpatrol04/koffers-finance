@@ -15,21 +15,39 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch recent transactions for this user from the transactions collection
-    // Note: plaidTransactions is a staging area, actual user transactions go in 'transactions' collection
-    const transactionsResponse = await databases.listDocuments(
+    // Fetch recent transactions from plaidTransactions staging area
+    const plaidTransactionsResponse = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.TRANSACTIONS,
+      COLLECTIONS.PLAID_TRANSACTIONS,
       [
-        Query.orderDesc('date'),
+        Query.equal('userId', userId),
         Query.limit(limit)
       ]
     );
 
+    // Parse raw Plaid data into transaction format
+    const transactions = plaidTransactionsResponse.documents.map(doc => {
+      const rawData = JSON.parse(doc.rawData);
+      return {
+        $id: doc.$id,
+        transactionId: rawData.transaction_id,
+        date: rawData.date,
+        name: rawData.name,
+        merchantName: rawData.merchant_name || rawData.name,
+        amount: rawData.amount,
+        isoCurrencyCode: rawData.iso_currency_code,
+        pending: rawData.pending,
+        category: JSON.stringify(rawData.category || []),
+      };
+    });
+
+    // Sort by date descending
+    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
     return NextResponse.json({
       success: true,
-      transactions: transactionsResponse.documents,
-      total: transactionsResponse.total
+      transactions,
+      total: plaidTransactionsResponse.total
     });
 
   } catch (error: any) {
