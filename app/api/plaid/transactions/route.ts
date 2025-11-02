@@ -15,39 +15,34 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch recent transactions from plaidTransactions staging area
-    const plaidTransactionsResponse = await databases.listDocuments(
+    // Fetch recent transactions from the processed transactions collection
+    const transactionsResponse = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.PLAID_TRANSACTIONS,
+      COLLECTIONS.TRANSACTIONS,
       [
         Query.equal('userId', userId),
+        Query.orderDesc('date'),
         Query.limit(limit)
       ]
     );
 
-    // Parse raw Plaid data into transaction format
-    const transactions = plaidTransactionsResponse.documents.map(doc => {
-      const rawData = JSON.parse(doc.rawData);
-      return {
-        $id: doc.$id,
-        transactionId: rawData.transaction_id,
-        date: rawData.date,
-        name: rawData.name,
-        merchantName: rawData.merchant_name || rawData.name,
-        amount: rawData.amount,
-        isoCurrencyCode: rawData.iso_currency_code,
-        pending: rawData.pending,
-        category: JSON.stringify(rawData.category || []),
-      };
-    });
-
-    // Sort by date descending
-    transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    // Format for frontend
+    const transactions = transactionsResponse.documents.map(doc => ({
+      $id: doc.$id,
+      transactionId: doc.plaidTransactionId,
+      date: doc.date,
+      name: doc.merchant,
+      merchantName: doc.merchant,
+      amount: doc.amount,
+      isoCurrencyCode: 'USD', // Default
+      pending: doc.status === 'pending',
+      category: doc.categoryId || 'Uncategorized',
+    }));
 
     return NextResponse.json({
       success: true,
       transactions,
-      total: plaidTransactionsResponse.total
+      total: transactionsResponse.total
     });
 
   } catch (error: any) {
