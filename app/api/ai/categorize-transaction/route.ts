@@ -3,6 +3,88 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
 
+// Merchant categorization cache
+// Maps normalized merchant name → category
+const merchantCache = new Map<string, {
+  category: string;
+  count: number;  // Number of times this merchant has been categorized
+  lastUsed: number;  // Timestamp of last use
+  confidence: number;  // Confidence score (increases with usage)
+}>();
+
+// Cache statistics
+let cacheHits = 0;
+let cacheMisses = 0;
+
+// Normalize merchant name for cache lookup
+function normalizeMerchant(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s]/g, '') // Remove special characters
+    .replace(/\s+/g, ' '); // Normalize whitespace
+}
+
+// Get category from cache
+function getCachedCategory(merchantName: string): string | null {
+  const normalized = normalizeMerchant(merchantName);
+  const cached = merchantCache.get(normalized);
+
+  if (cached && cached.confidence >= 0.8) { // Only use high-confidence cached entries
+    cacheHits++;
+    cached.lastUsed = Date.now();
+    cached.count++;
+    console.log(`✅ Cache HIT for "${merchantName}" → ${cached.category} (confidence: ${cached.confidence.toFixed(2)})`);
+    return cached.category;
+  }
+
+  cacheMisses++;
+  return null;
+}
+
+// Update cache with new categorization
+function updateCache(merchantName: string, category: string): void {
+  const normalized = normalizeMerchant(merchantName);
+  const existing = merchantCache.get(normalized);
+
+  if (existing) {
+    // Increase confidence with repeated categorizations
+    existing.count++;
+    existing.confidence = Math.min(1.0, existing.confidence + 0.1);
+    existing.lastUsed = Date.now();
+
+    // If new category is different, reduce confidence
+    if (existing.category !== category) {
+      existing.confidence = 0.5;
+      existing.category = category;
+      console.log(`⚠️  Merchant "${merchantName}" category changed to ${category}`);
+    }
+  } else {
+    // New merchant entry
+    merchantCache.set(normalized, {
+      category,
+      count: 1,
+      lastUsed: Date.now(),
+      confidence: 0.6 // Start with moderate confidence
+    });
+    console.log(`📝 Cached new merchant: "${merchantName}" → ${category}`);
+  }
+}
+
+// Get cache statistics
+function getCacheStats() {
+  const total = cacheHits + cacheMisses;
+  const hitRate = total > 0 ? (cacheHits / total * 100).toFixed(1) : '0.0';
+
+  return {
+    size: merchantCache.size,
+    hits: cacheHits,
+    misses: cacheMisses,
+    hitRate: `${hitRate}%`,
+    totalRequests: total
+  };
+}
+
 // Standard category taxonomy for financial transactions
 const CATEGORIES = [
   'Food & Dining',
@@ -55,6 +137,27 @@ Guidelines:
 
 Respond with ONLY the category name, nothing else.`;
 
+// GET endpoint for cache statistics
+export async function GET() {
+  const stats = getCacheStats();
+
+  // Get top 10 merchants by usage
+  const topMerchants = Array.from(merchantCache.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .map(([merchant, data]) => ({
+      merchant,
+      category: data.category,
+      count: data.count,
+      confidence: data.confidence
+    }));
+
+  return NextResponse.json({
+    ...stats,
+    topMerchants
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { transactionId, transactionIds } = await request.json();
@@ -89,6 +192,30 @@ export async function POST(request: NextRequest) {
         ? JSON.parse(transaction.category)
         : transaction.category
     };
+
+    // Check cache first
+    const cachedCategory = getCachedCategory(transactionDetails.merchantName);
+    if (cachedCategory) {
+      // Update transaction with cached category
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.PLAID_TRANSACTIONS,
+        transactionId,
+        {
+          category: JSON.stringify([cachedCategory]),
+          aiCategorized: true,
+          aiCategorizedAt: new Date().toISOString()
+        }
+      );
+
+      return NextResponse.json({
+        success: true,
+        transactionId,
+        category: cachedCategory,
+        confidence: 'high',
+        cached: true
+      });
+    }
 
     // Call Claude for categorization
     const { text: category } = await generateText({
@@ -134,6 +261,9 @@ Category:`,
       });
     }
 
+    // Update cache with new categorization
+    updateCache(transactionDetails.merchantName, cleanedCategory);
+
     // Update transaction with new category
     await databases.updateDocument(
       DATABASE_ID,
@@ -152,7 +282,8 @@ Category:`,
       success: true,
       transactionId,
       category: cleanedCategory,
-      confidence: 'high'
+      confidence: 'high',
+      cached: false
     });
 
   } catch (error: any) {
@@ -208,6 +339,30 @@ async function batchCategorize(transactionIds: string[]) {
             date: transaction.date
           };
 
+          // Check cache first
+          const cachedCategory = getCachedCategory(transactionDetails.merchantName);
+          if (cachedCategory) {
+            // Update transaction with cached category
+            await databases.updateDocument(
+              DATABASE_ID,
+              COLLECTIONS.PLAID_TRANSACTIONS,
+              transactionId,
+              {
+                category: JSON.stringify([cachedCategory]),
+                aiCategorized: true,
+                aiCategorizedAt: new Date().toISOString()
+              }
+            );
+
+            successCount++;
+            return {
+              transactionId,
+              category: cachedCategory,
+              success: true,
+              cached: true
+            };
+          }
+
           // Call Claude for categorization
           const { text: category } = await generateText({
             model: anthropic('claude-3-5-haiku-20241022'),
@@ -229,6 +384,9 @@ Category:`,
             ? cleanedCategory
             : 'Uncategorized';
 
+          // Update cache
+          updateCache(transactionDetails.merchantName, finalCategory);
+
           // Update transaction
           await databases.updateDocument(
             DATABASE_ID,
@@ -245,7 +403,8 @@ Category:`,
           return {
             transactionId,
             category: finalCategory,
-            success: true
+            success: true,
+            cached: false
           };
 
         } catch (error: any) {
