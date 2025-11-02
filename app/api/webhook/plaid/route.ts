@@ -11,6 +11,21 @@ export const runtime = 'nodejs';
 // Cache for webhook verification keys (keyed by kid)
 const cachedKeys = new Map<string, Awaited<ReturnType<typeof importJWK>>>();
 
+// Cache for processed webhook events (for idempotency)
+// Store webhook_id with timestamp, auto-expire after 24 hours
+const processedWebhooks = new Map<string, number>();
+const WEBHOOK_CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
+
+// Clean up old webhook entries periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [webhookId, timestamp] of processedWebhooks.entries()) {
+    if (now - timestamp > WEBHOOK_CACHE_TTL) {
+      processedWebhooks.delete(webhookId);
+    }
+  }
+}, 60 * 60 * 1000); // Clean every hour
+
 async function verifyWebhookSignature(request: NextRequest, body: any): Promise<boolean> {
   try {
     // Extract JWT from Plaid-Verification header
@@ -90,10 +105,21 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for duplicate webhook (idempotency)
+    const webhookId = body.webhook_id;
+    if (webhookId && processedWebhooks.has(webhookId)) {
+      console.log(`✅ Webhook ${webhookId} already processed, skipping (idempotent)`);
+      return NextResponse.json({
+        success: true,
+        message: 'Webhook already processed'
+      });
+    }
+
     console.log('🔔 Received Plaid webhook:', {
       type: body.webhook_type,
       code: body.webhook_code,
-      itemId: body.item_id
+      itemId: body.item_id,
+      webhookId: webhookId
     });
 
     // Get the webhook type and code
@@ -131,14 +157,36 @@ export async function POST(request: NextRequest) {
         console.log(`⚠️ Unhandled webhook type: ${webhookType}`);
     }
 
+    // Mark webhook as processed (idempotency)
+    if (webhookId) {
+      processedWebhooks.set(webhookId, Date.now());
+      console.log(`✅ Marked webhook ${webhookId} as processed`);
+    }
+
     return NextResponse.json({ success: true });
 
   } catch (error: any) {
     console.error('❌ Error processing Plaid webhook:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to process webhook' },
-      { status: 500 }
-    );
+
+    // Return 500 for server errors (Plaid will retry)
+    // Return 200 for non-retryable errors (invalid data, etc.)
+    const isRetryable = !error.message?.includes('not found') &&
+                       !error.message?.includes('invalid');
+
+    if (isRetryable) {
+      // Server error - Plaid will retry
+      return NextResponse.json(
+        { error: error.message || 'Failed to process webhook' },
+        { status: 500 }
+      );
+    } else {
+      // Non-retryable error - return 200 to prevent retries
+      console.log('⚠️ Non-retryable error, returning 200 to prevent retries');
+      return NextResponse.json({
+        success: false,
+        error: error.message || 'Non-retryable error'
+      });
+    }
   }
 }
 
@@ -255,71 +303,85 @@ async function syncTransactions(
 
     let added = 0;
     let updated = 0;
+    let errors = 0;
 
-    // Store/update transactions
-    for (const transaction of allTransactions) {
-      try {
-        // Check if transaction already exists
-        const existingTransaction = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.PLAID_TRANSACTIONS,
-          [
-            Query.equal('userId', userId),
-            Query.equal('transactionId', transaction.transaction_id),
-            Query.limit(1)
-          ]
-        );
+    // Process transactions in batches to handle errors better
+    const BATCH_SIZE = 50;
+    for (let i = 0; i < allTransactions.length; i += BATCH_SIZE) {
+      const batch = allTransactions.slice(i, i + BATCH_SIZE);
+      console.log(`📦 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(allTransactions.length / BATCH_SIZE)} (${batch.length} transactions)`);
 
-        if (existingTransaction.documents.length > 0) {
-          // Update existing transaction
-          await databases.updateDocument(
+      // Process batch with Promise.allSettled to handle failures gracefully
+      const results = await Promise.allSettled(
+        batch.map(async (transaction) => {
+          // Check if transaction already exists
+          const existingTransaction = await databases.listDocuments(
             DATABASE_ID,
             COLLECTIONS.PLAID_TRANSACTIONS,
-            existingTransaction.documents[0].$id,
-            {
-              date: transaction.date,
-              name: transaction.name,
-              merchantName: transaction.merchant_name || transaction.name,
-              amount: transaction.amount,
-              isoCurrencyCode: transaction.iso_currency_code || 'USD',
-              pending: transaction.pending || false,
-              category: JSON.stringify(transaction.category || []),
-              categoryId: transaction.category_id || '',
-              paymentChannel: transaction.payment_channel,
-              rawData: JSON.stringify(transaction)
-            }
+            [
+              Query.equal('userId', userId),
+              Query.equal('transactionId', transaction.transaction_id),
+              Query.limit(1)
+            ]
           );
-          updated++;
+
+          const transactionData = {
+            date: transaction.date,
+            name: transaction.name,
+            merchantName: transaction.merchant_name || transaction.name,
+            amount: transaction.amount,
+            isoCurrencyCode: transaction.iso_currency_code || 'USD',
+            pending: transaction.pending || false,
+            category: JSON.stringify(transaction.category || []),
+            categoryId: transaction.category_id || '',
+            paymentChannel: transaction.payment_channel,
+            rawData: JSON.stringify(transaction)
+          };
+
+          if (existingTransaction.documents.length > 0) {
+            // Update existing transaction
+            await databases.updateDocument(
+              DATABASE_ID,
+              COLLECTIONS.PLAID_TRANSACTIONS,
+              existingTransaction.documents[0].$id,
+              transactionData
+            );
+            return { action: 'updated', transactionId: transaction.transaction_id };
+          } else {
+            // Create new transaction
+            await databases.createDocument(
+              DATABASE_ID,
+              COLLECTIONS.PLAID_TRANSACTIONS,
+              ID.unique(),
+              {
+                userId,
+                accountId: transaction.account_id,
+                transactionId: transaction.transaction_id,
+                ...transactionData
+              }
+            );
+            return { action: 'added', transactionId: transaction.transaction_id };
+          }
+        })
+      );
+
+      // Count successes and failures
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          if (result.value.action === 'added') {
+            added++;
+          } else {
+            updated++;
+          }
         } else {
-          // Create new transaction
-          await databases.createDocument(
-            DATABASE_ID,
-            COLLECTIONS.PLAID_TRANSACTIONS,
-            ID.unique(),
-            {
-              userId,
-              accountId: transaction.account_id,
-              transactionId: transaction.transaction_id,
-              date: transaction.date,
-              name: transaction.name,
-              merchantName: transaction.merchant_name || transaction.name,
-              amount: transaction.amount,
-              isoCurrencyCode: transaction.iso_currency_code || 'USD',
-              pending: transaction.pending || false,
-              category: JSON.stringify(transaction.category || []),
-              categoryId: transaction.category_id || '',
-              paymentChannel: transaction.payment_channel,
-              rawData: JSON.stringify(transaction)
-            }
-          );
-          added++;
+          errors++;
+          const transaction = batch[index];
+          console.error(`❌ Error processing transaction ${transaction.transaction_id}:`, result.reason?.message);
         }
-      } catch (error: any) {
-        console.error(`Error storing transaction ${transaction.transaction_id}:`, error.message);
-      }
+      });
     }
 
-    console.log(`✅ Webhook sync complete: ${added} added, ${updated} updated`);
+    console.log(`✅ Webhook sync complete: ${added} added, ${updated} updated, ${errors} errors`);
 
     // Auto-categorize new transactions in background
     if (added > 0) {
