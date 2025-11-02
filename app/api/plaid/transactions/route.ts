@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       amount: doc.amount,
       isoCurrencyCode: 'USD', // Default
       pending: doc.status === 'pending',
-      category: doc.categoryId || 'Uncategorized',
+      category: JSON.stringify([doc.categoryId || 'Uncategorized']),
     }));
 
     return NextResponse.json({
