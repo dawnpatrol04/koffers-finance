@@ -158,6 +158,89 @@ export async function GET() {
   });
 }
 
+// PATCH endpoint for manual category override
+export async function PATCH(request: NextRequest) {
+  try {
+    const { transactionId, category } = await request.json();
+
+    if (!transactionId || !category) {
+      return NextResponse.json(
+        { error: 'transactionId and category required' },
+        { status: 400 }
+      );
+    }
+
+    // Validate category
+    if (!CATEGORIES.includes(category)) {
+      return NextResponse.json(
+        { error: `Invalid category. Must be one of: ${CATEGORIES.join(', ')}` },
+        { status: 400 }
+      );
+    }
+
+    // Get transaction
+    const transaction = await databases.getDocument(
+      DATABASE_ID,
+      COLLECTIONS.PLAID_TRANSACTIONS,
+      transactionId
+    );
+
+    const merchantName = transaction.merchantName || transaction.name;
+    const oldCategory = typeof transaction.category === 'string'
+      ? JSON.parse(transaction.category)[0]
+      : transaction.category?.[0] || 'Uncategorized';
+
+    // Update cache with user's override (high confidence boost)
+    // User corrections should have higher confidence than AI suggestions
+    const normalized = normalizeMerchant(merchantName);
+    const cached = merchantCache.get(normalized);
+
+    if (cached) {
+      cached.category = category;
+      cached.confidence = Math.min(1.0, cached.confidence + 0.3); // Big confidence boost for user correction
+      cached.lastUsed = Date.now();
+      cached.count++;
+    } else {
+      merchantCache.set(normalized, {
+        category,
+        count: 1,
+        lastUsed: Date.now(),
+        confidence: 0.9 // Start with high confidence for user corrections
+      });
+    }
+
+    // Update transaction
+    await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.PLAID_TRANSACTIONS,
+      transactionId,
+      {
+        category: JSON.stringify([category]),
+        aiCategorized: true,
+        manuallyOverridden: true,
+        aiCategorizedAt: new Date().toISOString()
+      }
+    );
+
+    console.log(`✏️  User overrode "${merchantName}": ${oldCategory} → ${category} (learning applied)`);
+
+    return NextResponse.json({
+      success: true,
+      transactionId,
+      oldCategory,
+      newCategory: category,
+      message: 'Category updated and cached for future transactions'
+    });
+
+  } catch (error: any) {
+    console.error('Error updating category:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to update category' },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const { transactionId, transactionIds } = await request.json();
