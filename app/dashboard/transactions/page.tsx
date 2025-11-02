@@ -6,9 +6,12 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Plus, Search } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TransactionCard } from '@/components/transaction-card';
+import { Plus, Search, ArrowLeft } from 'lucide-react';
+import type { Transaction } from '@/types/transaction';
 
-interface Transaction {
+interface ApiTransaction {
   $id: string;
   transactionId: string;
   date: string;
@@ -32,10 +35,8 @@ export default function TransactionsPage() {
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
-    // Wait for user context to finish loading
     if (userLoading) return;
 
-    // If user is not available after loading, show error
     if (!user?.$id) {
       setError('User not authenticated');
       setLoading(false);
@@ -49,7 +50,29 @@ export default function TransactionsPage() {
         const data = await response.json();
 
         if (data.success) {
-          setTransactions(data.transactions);
+          // Map API transactions to Transaction type
+          const mappedTransactions: Transaction[] = data.transactions.map((t: ApiTransaction) => {
+            const categories = t.category ? JSON.parse(t.category) : [];
+            const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+
+            return {
+              id: t.$id,
+              date: t.date,
+              merchant: t.merchantName,
+              merchantSubtext: t.name,
+              amount: t.amount,
+              category: displayCategory,
+              channel: t.paymentChannel || 'Other',
+              status: t.pending ? 'pending' : 'completed',
+              hasReceipt: false,
+              hasCommentary: false,
+              isReviewed: false,
+              hasTags: false,
+              hasReminder: false,
+            } as Transaction;
+          });
+
+          setTransactions(mappedTransactions);
         } else {
           setError(data.error || 'Failed to fetch transactions');
         }
@@ -65,19 +88,17 @@ export default function TransactionsPage() {
   }, [user?.$id, userLoading]);
 
   const filteredTransactions = transactions.filter(transaction => {
-    // Filter by type (all/income/expense/pending)
     let typeMatch = true;
     if (filter === 'income') typeMatch = transaction.amount < 0;
-    else if (filter === 'expense') typeMatch = transaction.amount > 0;
-    else if (filter === 'pending') typeMatch = transaction.pending;
+    else if (filter === 'expenses') typeMatch = transaction.amount > 0;
+    else if (filter === 'pending') typeMatch = transaction.status === 'pending';
 
-    // Filter by search query (merchant name or transaction name)
     let searchMatch = true;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       searchMatch =
-        transaction.merchantName.toLowerCase().includes(query) ||
-        transaction.name.toLowerCase().includes(query);
+        transaction.merchant.toLowerCase().includes(query) ||
+        (transaction.merchantSubtext && transaction.merchantSubtext.toLowerCase().includes(query));
     }
 
     return typeMatch && searchMatch;
@@ -90,28 +111,38 @@ export default function TransactionsPage() {
     if (sortBy === 'amount') {
       return Math.abs(b.amount) - Math.abs(a.amount);
     }
-    if (sortBy === 'name') {
-      return a.merchantName.localeCompare(b.merchantName);
+    if (sortBy === 'merchant') {
+      return a.merchant.localeCompare(b.merchant);
+    }
+    if (sortBy === 'completion') {
+      const aComplete = a.hasReceipt && a.hasCommentary;
+      const bComplete = b.hasReceipt && b.hasCommentary;
+      return aComplete === bComplete ? 0 : aComplete ? 1 : -1;
     }
     return 0;
   });
 
   if (loading) {
     return (
-      <div className="p-8">
-        <div className="mb-6">
-          <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Back to Dashboard
-          </Link>
-        </div>
-        <h1 className="text-2xl font-bold mb-6">Transactions</h1>
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="animate-pulse border border-border rounded-lg p-4">
-              <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
-              <div className="h-3 bg-muted rounded w-1/2"></div>
-            </div>
-          ))}
+      <div className="min-h-screen bg-background">
+        <div className="max-w-6xl mx-auto p-6 space-y-6">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/dashboard">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Link>
+            </Button>
+          </div>
+          <h1 className="text-4xl font-bold">Transactions</h1>
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div key={i} className="animate-pulse border border-border rounded-lg p-4">
+                <div className="h-4 bg-muted rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-muted rounded w-1/2"></div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -119,172 +150,114 @@ export default function TransactionsPage() {
 
   if (error) {
     return (
-      <div className="p-8">
-        <div className="mb-6">
-          <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Back to Dashboard
-          </Link>
-        </div>
-        <h1 className="text-2xl font-bold mb-6">Transactions</h1>
-        <div className="border border-border rounded-lg p-6 text-center">
-          <p className="text-muted-foreground">{error}</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (transactions.length === 0) {
-    return (
-      <div className="p-8">
-        <div className="mb-6">
-          <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Back to Dashboard
-          </Link>
-        </div>
-        <h1 className="text-2xl font-bold mb-6">Transactions</h1>
-        <div className="border border-border rounded-lg p-12 text-center">
-          <p className="text-muted-foreground mb-4">No transactions found</p>
-          <Link href="/dashboard" className="text-sm text-primary hover:underline">
-            Connect a bank account to get started
-          </Link>
+      <div className="min-h-screen bg-background">
+        <div className="max-w-6xl mx-auto p-6 space-y-6">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/dashboard">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Link>
+            </Button>
+          </div>
+          <h1 className="text-4xl font-bold">Transactions</h1>
+          <div className="border border-border rounded-lg p-6 text-center">
+            <p className="text-muted-foreground">{error}</p>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-6">
-        <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-foreground">
-          ← Back to Dashboard
-        </Link>
-      </div>
-
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Transactions</h1>
-        <div className="flex items-center gap-4">
-          <div className="text-sm text-muted-foreground">
-            {sortedTransactions.length} transactions
+    <div className="min-h-screen bg-background">
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="sm" asChild>
+              <Link href="/dashboard">
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Link>
+            </Button>
           </div>
-          <Button
-            onClick={() => router.push('/dashboard/transactions?createTransaction=true')}
-            size="sm"
-          >
-            <Plus className="w-4 h-4 mr-2" />
-            Add Transaction
-          </Button>
-        </div>
-      </div>
-
-      {/* Search */}
-      <div className="mb-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-          <Input
-            type="text"
-            placeholder="Search transactions..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-      </div>
-
-      {/* Filters and Sort */}
-      <div className="flex gap-4 mb-6">
-        <div className="flex gap-2">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-3 py-1 text-sm border rounded-md ${
-              filter === 'all' ? 'bg-primary text-primary-foreground' : 'border-border hover:bg-accent'
-            }`}
-          >
-            All
-          </button>
-          <button
-            onClick={() => setFilter('income')}
-            className={`px-3 py-1 text-sm border rounded-md ${
-              filter === 'income' ? 'bg-primary text-primary-foreground' : 'border-border hover:bg-accent'
-            }`}
-          >
-            Income
-          </button>
-          <button
-            onClick={() => setFilter('expense')}
-            className={`px-3 py-1 text-sm border rounded-md ${
-              filter === 'expense' ? 'bg-primary text-primary-foreground' : 'border-border hover:bg-accent'
-            }`}
-          >
-            Expenses
-          </button>
-          <button
-            onClick={() => setFilter('pending')}
-            className={`px-3 py-1 text-sm border rounded-md ${
-              filter === 'pending' ? 'bg-primary text-primary-foreground' : 'border-border hover:bg-accent'
-            }`}
-          >
-            Pending
-          </button>
         </div>
 
-        <div className="ml-auto flex gap-2">
-          <select
-            value={sortBy}
-            onChange={(e) => setSortBy(e.target.value)}
-            className="px-3 py-1 text-sm border border-border rounded-md bg-background"
-          >
-            <option value="date">Sort by Date</option>
-            <option value="amount">Sort by Amount</option>
-            <option value="name">Sort by Name</option>
-          </select>
+        <div className="flex items-center justify-between">
+          <h1 className="text-4xl font-bold">Transactions</h1>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">{sortedTransactions.length} transactions</span>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Transaction
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* Transactions Table */}
-      <div className="border border-border rounded-lg overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-muted/50 border-b border-border">
-            <tr>
-              <th className="text-left p-4 text-sm font-medium">Date</th>
-              <th className="text-left p-4 text-sm font-medium">Merchant</th>
-              <th className="text-left p-4 text-sm font-medium">Category</th>
-              <th className="text-left p-4 text-sm font-medium">Channel</th>
-              <th className="text-right p-4 text-sm font-medium">Amount</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedTransactions.map((transaction) => {
-              const categories = transaction.category ? JSON.parse(transaction.category) : [];
-              const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+        {/* Filters */}
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search transactions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
 
-              return (
-                <tr
-                  key={transaction.$id}
-                  onClick={() => router.push(`/dashboard/transactions?transactionId=${transaction.transactionId}`)}
-                  className="border-b border-border last:border-0 hover:bg-muted/30 cursor-pointer"
-                >
-                  <td className="p-4 text-sm">
-                    <div>{new Date(transaction.date).toLocaleDateString()}</div>
-                    {transaction.pending && (
-                      <span className="text-xs text-yellow-600">Pending</span>
-                    )}
-                  </td>
-                  <td className="p-4">
-                    <div className="text-sm font-medium">{transaction.merchantName}</div>
-                    <div className="text-xs text-muted-foreground">{transaction.name}</div>
-                  </td>
-                  <td className="p-4 text-sm text-muted-foreground">{displayCategory}</td>
-                  <td className="p-4 text-sm text-muted-foreground capitalize">{transaction.paymentChannel}</td>
-                  <td className="p-4 text-right">
-                    <span className={`text-sm font-medium ${transaction.amount < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {transaction.amount < 0 ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
-                    </span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          <div className="flex gap-2">
+            <Button variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>
+              All
+            </Button>
+            <Button variant={filter === "income" ? "default" : "outline"} onClick={() => setFilter("income")}>
+              Income
+            </Button>
+            <Button
+              variant={filter === "expenses" ? "default" : "outline"}
+              onClick={() => setFilter("expenses")}
+            >
+              Expenses
+            </Button>
+            <Button variant={filter === "pending" ? "default" : "outline"} onClick={() => setFilter("pending")}>
+              Pending
+            </Button>
+          </div>
+
+          <Select value={sortBy} onValueChange={setSortBy}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">Sort by Date</SelectItem>
+              <SelectItem value="amount">Sort by Amount</SelectItem>
+              <SelectItem value="merchant">Sort by Merchant</SelectItem>
+              <SelectItem value="completion">Sort by Completion</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Transaction List */}
+        <div className="space-y-3">
+          {sortedTransactions.map((transaction) => (
+            <TransactionCard
+              key={transaction.id}
+              transaction={transaction}
+              onUploadReceipt={(id) => console.log("Upload receipt for", id)}
+              onAddCommentary={(id) => console.log("Add commentary for", id)}
+              onMarkReviewed={(id) => console.log("Mark reviewed", id)}
+              onAddTag={(id) => console.log("Add tag for", id)}
+              onAddReminder={(id) => console.log("Add reminder for", id)}
+            />
+          ))}
+
+          {sortedTransactions.length === 0 && (
+            <div className="border border-border rounded-lg p-12 text-center">
+              <p className="text-muted-foreground">No transactions found matching your filters</p>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
