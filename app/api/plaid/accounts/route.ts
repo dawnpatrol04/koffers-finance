@@ -14,6 +14,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Debug logging
+    console.log('DATABASE_ID:', DATABASE_ID);
+    console.log('COLLECTIONS:', COLLECTIONS);
+    console.log('COLLECTIONS.ACCOUNTS:', COLLECTIONS.ACCOUNTS);
+
     // Fetch all accounts for this user
     const accountsResponse = await databases.listDocuments(
       DATABASE_ID,
