@@ -1,326 +1,251 @@
-"use client";
+"use client"
 
-import { useState, useCallback, useEffect } from "react";
-import { cn } from "@/lib/utils";
-import { Icons } from "@/components/ui/icons";
-import { MdOutlineGridView, MdOutlineViewList, MdCloudUpload, MdOutlineAdd } from "react-icons/md";
-import { useUser } from "@/contexts/user-context";
+import { useState } from "react"
+import { Upload, LayoutGrid, List, ArrowLeft } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { FileCard } from "@/components/file-card"
+import { FileList } from "@/components/file-list"
+import type { FileDocument } from "@/types/file"
+import Link from "next/link"
+import { useUser } from "@/contexts/user-context"
+import { useEffect, useCallback } from "react"
 
 export default function FilesPage() {
-  const { user } = useUser();
-  const [isDragging, setIsDragging] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [files, setFiles] = useState<any[]>([]);
-  const [viewMode, setViewMode] = useState<"list" | "grid">("list");
-  const [loading, setLoading] = useState(true);
+  const { user } = useUser()
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
+  const [isDragging, setIsDragging] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [files, setFiles] = useState<FileDocument[]>([])
+  const [loading, setLoading] = useState(true)
 
   const fetchFiles = useCallback(async () => {
-    if (!user) return;
+    if (!user) return
 
     try {
-      const response = await fetch(`/api/files?userId=${user.$id}`);
+      const response = await fetch(`/api/files?userId=${user.$id}`)
       if (response.ok) {
-        const data = await response.json();
-        setFiles(data.files || []);
+        const data = await response.json()
+
+        // Map API files to FileDocument type
+        const mappedFiles: FileDocument[] = (data.files || []).map((file: any) => ({
+          id: file.$id || file.fileId,
+          name: file.fileName,
+          type: file.mimeType?.includes('image') ? 'receipt' : 'document',
+          size: file.fileSize,
+          uploadedAt: new Date(file.createdAt).toLocaleDateString('en-US'),
+          isReceipt: file.mimeType?.includes('image') || false,
+          // For now, no receipt data since OCR isn't implemented
+          matchStatus: undefined,
+          thumbnailUrl: undefined,
+        }))
+
+        setFiles(mappedFiles)
       }
     } catch (error) {
-      console.error("Failed to fetch files:", error);
+      console.error("Failed to fetch files:", error)
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
-  }, [user]);
+  }, [user])
 
-  // Fetch files on mount
   useEffect(() => {
     if (user) {
-      fetchFiles();
+      fetchFiles()
     }
-  }, [user, fetchFiles]);
+  }, [user, fetchFiles])
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
-  }, []);
+    e.preventDefault()
+    setIsDragging(true)
+  }, [])
 
   const handleDragLeave = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-  }, []);
+    e.preventDefault()
+    setIsDragging(false)
+  }, [])
 
   const handleDrop = useCallback(async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
+    e.preventDefault()
+    setIsDragging(false)
 
-    const droppedFiles = Array.from(e.dataTransfer.files);
+    const droppedFiles = Array.from(e.dataTransfer.files)
 
     if (!user) {
-      alert("Please log in to upload files.");
-      return;
+      alert("Please log in to upload files.")
+      return
     }
 
-    setUploading(true);
+    setUploading(true)
 
     try {
       for (const file of droppedFiles) {
-        const formData = new FormData();
-        formData.append("file", file);
+        const formData = new FormData()
+        formData.append("file", file)
 
         const response = await fetch(`/api/files/upload?userId=${user.$id}`, {
           method: "POST",
           body: formData,
-        });
+        })
 
         if (!response.ok) {
-          const error = await response.json();
-          console.error("Upload failed:", error);
-          continue; // Continue with next file instead of throwing
+          const error = await response.json()
+          console.error("Upload failed:", error)
+          continue
         }
 
-        const result = await response.json();
-        console.log("File uploaded:", result);
+        const result = await response.json()
+        console.log("File uploaded:", result)
       }
 
-      // Always refresh files list after upload attempts
-      await fetchFiles();
+      await fetchFiles()
     } catch (error) {
-      console.error("Upload error:", error);
-      // Don't show alert here, will refresh anyway
+      console.error("Upload error:", error)
     } finally {
-      setUploading(false);
+      setUploading(false)
     }
-  }, [user, fetchFiles]);
+  }, [user, fetchFiles])
 
-  const handleFileSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files ? Array.from(e.target.files) : [];
-
+  const handleFileSelect = useCallback(async () => {
     if (!user) {
-      alert("Please log in to upload files.");
-      return;
+      alert("Please log in to upload files.")
+      return
     }
 
-    if (selectedFiles.length === 0) return;
+    const input = document.createElement('input')
+    input.type = 'file'
+    input.multiple = true
+    input.onchange = async (e: Event) => {
+      const target = e.target as HTMLInputElement
+      const selectedFiles = target.files ? Array.from(target.files) : []
 
-    setUploading(true);
+      if (selectedFiles.length === 0) return
 
-    try {
-      for (const file of selectedFiles) {
-        const formData = new FormData();
-        formData.append("file", file);
+      setUploading(true)
 
-        const response = await fetch(`/api/files/upload?userId=${user.$id}`, {
-          method: "POST",
-          body: formData,
-        });
+      try {
+        for (const file of selectedFiles) {
+          const formData = new FormData()
+          formData.append("file", file)
 
-        if (!response.ok) {
-          const error = await response.json();
-          console.error("Upload failed:", error);
-          continue; // Continue with next file instead of throwing
+          const response = await fetch(`/api/files/upload?userId=${user.$id}`, {
+            method: "POST",
+            body: formData,
+          })
+
+          if (!response.ok) {
+            const error = await response.json()
+            console.error("Upload failed:", error)
+            continue
+          }
+
+          const result = await response.json()
+          console.log("File uploaded:", result)
         }
 
-        const result = await response.json();
-        console.log("File uploaded:", result);
+        await fetchFiles()
+      } catch (error) {
+        console.error("Upload error:", error)
+      } finally {
+        setUploading(false)
       }
-
-      // Always refresh files list after upload attempts
-      await fetchFiles();
-    } catch (error) {
-      console.error("Upload error:", error);
-      // Don't show alert here, will refresh anyway
-    } finally {
-      setUploading(false);
     }
-  }, [user, fetchFiles]);
+    input.click()
+  }, [user, fetchFiles])
 
   const handleDeleteFile = async (fileId: string) => {
-    if (!user) return;
+    if (!user) return
     if (!confirm("Are you sure you want to delete this file?")) {
-      return;
+      return
     }
 
     try {
       const response = await fetch(`/api/files/${fileId}?userId=${user.$id}`, {
         method: "DELETE",
-      });
+      })
 
       if (!response.ok) {
-        throw new Error("Delete failed");
+        throw new Error("Delete failed")
       }
 
-      // Refresh files list
-      await fetchFiles();
+      await fetchFiles()
     } catch (error) {
-      console.error("Delete error:", error);
-      alert("Delete failed. Please try again.");
+      console.error("Delete error:", error)
+      alert("Delete failed. Please try again.")
     }
-  };
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Files</h1>
+    <div className="container mx-auto py-8 px-4 max-w-7xl">
+      <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" size="sm" asChild>
+            <Link href="/dashboard">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Dashboard
+            </Link>
+          </Button>
+          <h1 className="text-3xl font-bold">Files</h1>
+        </div>
+
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setViewMode("list")}
-            className={cn(
-              "p-2 rounded-md transition-colors",
-              viewMode === "list"
-                ? "bg-gray-100 dark:bg-gray-800 text-primary"
-                : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            )}
-          >
-            <MdOutlineViewList size={20} />
-          </button>
-          <button
-            onClick={() => setViewMode("grid")}
-            className={cn(
-              "p-2 rounded-md transition-colors",
-              viewMode === "grid"
-                ? "bg-gray-100 dark:bg-gray-800 text-primary"
-                : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
-            )}
-          >
-            <MdOutlineGridView size={20} />
-          </button>
+          <Button variant={viewMode === "list" ? "default" : "outline"} size="icon" onClick={() => setViewMode("list")}>
+            <List className="h-4 w-4" />
+          </Button>
+          <Button variant={viewMode === "grid" ? "default" : "outline"} size="icon" onClick={() => setViewMode("grid")}>
+            <LayoutGrid className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
-      {/* Upload Zone */}
+      {/* Upload Area */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        className={cn(
-          "border-2 border-dashed rounded-lg p-12 text-center transition-all",
-          isDragging
-            ? "border-primary bg-primary/5"
-            : "border-gray-300 dark:border-gray-700",
-          uploading && "opacity-50 pointer-events-none"
-        )}
+        className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-12 mb-8 text-center hover:border-muted-foreground/50 transition-colors"
       >
-        {uploading ? (
-          <div className="space-y-2">
-            <Icons.Downloading size={48} className="mx-auto text-primary animate-pulse" />
-            <p className="text-sm text-gray-500">Processing files...</p>
+        <div className="flex flex-col items-center gap-4">
+          <div className="p-4 rounded-full bg-muted">
+            <Upload className="h-8 w-8 text-muted-foreground" />
           </div>
-        ) : (
-          <div className="space-y-4">
-            <MdCloudUpload size={48} className="mx-auto text-gray-400" />
-            <div>
-              <p className="text-lg font-medium">Drag and drop files here</p>
-              <p className="text-sm text-gray-500 mt-1">
-                or click the button below to select files
-              </p>
-            </div>
-            <div>
-              <input
-                type="file"
-                multiple
-                onChange={handleFileSelect}
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 cursor-pointer transition-colors"
-              >
-                <MdOutlineAdd size={20} />
-                Select Files
-              </label>
-            </div>
-            <p className="text-xs text-gray-400">
-              Maximum file size: 20MB per file
-            </p>
+          <div>
+            <h3 className="text-lg font-semibold mb-1">Drag and drop files here</h3>
+            <p className="text-sm text-muted-foreground mb-4">or click the button below to select files</p>
+            <Button onClick={handleFileSelect} disabled={uploading}>
+              <Upload className="h-4 w-4 mr-2" />
+              {uploading ? "Uploading..." : "Select Files"}
+            </Button>
           </div>
-        )}
+          <p className="text-xs text-muted-foreground">Maximum file size: 20MB per file</p>
+        </div>
       </div>
 
-      {/* Files List */}
-      {files.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Your Files</h2>
+      {/* Files Display */}
+      <div className="mb-4">
+        <h2 className="text-xl font-bold">Your Files</h2>
+      </div>
 
-          {viewMode === "list" ? (
-            <div className="border rounded-lg overflow-hidden">
-              <table className="w-full">
-                <thead className="bg-gray-50 dark:bg-gray-900">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                      Name
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                      Type
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                      Size
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                      Uploaded
-                    </th>
-                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-500">
-                      Actions
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {files.map((file) => (
-                    <tr key={file.$id} className="border-t hover:bg-gray-50 dark:hover:bg-gray-900">
-                      <td className="px-4 py-3 text-sm">{file.fileName}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {file.mimeType}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {(file.fileSize / 1024).toFixed(1)} KB
-                      </td>
-                      <td className="px-4 py-3 text-sm text-gray-500">
-                        {new Date(file.createdAt).toLocaleDateString()}
-                      </td>
-                      <td className="px-4 py-3 text-sm">
-                        <button
-                          onClick={() => handleDeleteFile(file.fileId)}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {files.map((file) => (
-                <div
-                  key={file.$id}
-                  className="border rounded-lg p-4 hover:shadow-md transition-shadow"
-                >
-                  <div className="aspect-square bg-gray-100 dark:bg-gray-900 rounded-md mb-2 flex items-center justify-center">
-                    <Icons.Description size={48} className="text-gray-400" />
-                  </div>
-                  <p className="text-sm font-medium truncate">{file.fileName}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {(file.fileSize / 1024).toFixed(1)} KB
-                  </p>
-                  <button
-                    onClick={() => handleDeleteFile(file.fileId)}
-                    className="mt-2 text-xs text-red-500 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
+      {loading ? (
+        <div className="text-center py-12 text-muted-foreground">
+          <p>Loading files...</p>
         </div>
-      )}
-
-      {files.length === 0 && !uploading && (
-        <div className="text-center py-12 text-gray-500">
+      ) : files.length === 0 ? (
+        <div className="text-center py-12 text-muted-foreground">
           <p>No files uploaded yet</p>
         </div>
+      ) : viewMode === "grid" ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {files.map((file) => (
+            <FileCard key={file.id} file={file} onClick={(file) => console.log("Clicked file:", file)} />
+          ))}
+        </div>
+      ) : (
+        <FileList
+          files={files}
+          onFileClick={(file) => console.log("Clicked file:", file)}
+          onDelete={handleDeleteFile}
+        />
       )}
     </div>
-  );
+  )
 }
