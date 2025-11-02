@@ -2,13 +2,93 @@ import { NextRequest, NextResponse } from 'next/server';
 import { plaidClient } from '@/lib/plaid';
 import { databases, DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
+import { jwtVerify, importJWK, decodeJwt, JWK } from 'jose';
+import { createHash } from 'crypto';
 
 // Disable body parsing to get raw body for signature verification
 export const runtime = 'nodejs';
 
+// Cache for webhook verification keys (keyed by kid)
+const cachedKeys = new Map<string, Awaited<ReturnType<typeof importJWK>>>();
+
+async function verifyWebhookSignature(request: NextRequest, body: any): Promise<boolean> {
+  try {
+    // Extract JWT from Plaid-Verification header
+    const signedJwt = request.headers.get('plaid-verification');
+
+    if (!signedJwt) {
+      console.error('❌ No Plaid-Verification header found');
+      return false;
+    }
+
+    // Decode JWT to extract kid (key ID) from header
+    const decoded = decodeJwt(signedJwt);
+    const header = JSON.parse(Buffer.from(signedJwt.split('.')[0], 'base64').toString());
+    const kid = header.kid;
+
+    if (!kid) {
+      console.error('❌ No kid found in JWT header');
+      return false;
+    }
+
+    // Get webhook verification key if not cached
+    let publicKey = cachedKeys.get(kid);
+    if (!publicKey) {
+      const keyResponse = await plaidClient.webhookVerificationKeyGet({
+        key_id: kid
+      });
+
+      if (!keyResponse.data.key) {
+        console.error('❌ Failed to get webhook verification key');
+        return false;
+      }
+
+      // Import JWK as crypto key
+      const jwk = keyResponse.data.key as unknown as JWK;
+      publicKey = await importJWK(jwk, 'ES256');
+      cachedKeys.set(kid, publicKey);
+      console.log(`✅ Cached webhook verification key: ${kid}`);
+    }
+
+    // Verify JWT signature
+    const { payload } = await jwtVerify(signedJwt, publicKey, {
+      algorithms: ['ES256']
+    });
+
+    // Compute SHA-256 hash of request body
+    // Note: Plaid uses 2-space indentation, so we stringify with 2 spaces
+    const bodyString = JSON.stringify(body, null, 2);
+    const bodyHash = createHash('sha256').update(bodyString).digest('hex');
+
+    // Verify hash matches
+    if (payload.request_body_sha256 !== bodyHash) {
+      console.error('❌ Request body hash mismatch');
+      console.error(`Expected: ${payload.request_body_sha256}`);
+      console.error(`Got: ${bodyHash}`);
+      return false;
+    }
+
+    console.log('✅ Webhook signature verified');
+    return true;
+
+  } catch (error: any) {
+    console.error('❌ Error verifying webhook signature:', error.message);
+    return false;
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // Verify webhook signature
+    const isValid = await verifyWebhookSignature(request, body);
+    if (!isValid) {
+      return NextResponse.json(
+        { error: 'Invalid webhook signature' },
+        { status: 401 }
+      );
+    }
 
     console.log('🔔 Received Plaid webhook:', {
       type: body.webhook_type,
