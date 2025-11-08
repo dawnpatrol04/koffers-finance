@@ -30,8 +30,9 @@ export default function FilesPage() {
         const mappedFiles: FileDocument[] = (data.files || []).map((file: any) => {
           // Generate preview URL for images using Appwrite's preview API
           const isImage = file.mimeType?.includes('image')
+          const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT?.trim() || ''
           const thumbnailUrl = isImage
-            ? `${process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}/storage/buckets/files/files/${file.fileId}/preview?width=400&height=300&output=jpg`
+            ? `${endpoint}/storage/buckets/files/files/${file.fileId}/preview?width=400&height=300&output=jpg`
             : undefined
 
           return {
