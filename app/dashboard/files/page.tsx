@@ -122,11 +122,16 @@ export default function FilesPage() {
     const input = document.createElement('input')
     input.type = 'file'
     input.multiple = true
+    input.accept = 'image/*,.pdf'
+
     input.onchange = async (e: Event) => {
       const target = e.target as HTMLInputElement
       const selectedFiles = target.files ? Array.from(target.files) : []
 
-      if (selectedFiles.length === 0) return
+      if (selectedFiles.length === 0) {
+        input.remove()
+        return
+      }
 
       setUploading(true)
 
@@ -155,8 +160,15 @@ export default function FilesPage() {
         console.error("Upload error:", error)
       } finally {
         setUploading(false)
+        input.remove()
       }
     }
+
+    // Clean up if user cancels
+    input.oncancel = () => {
+      input.remove()
+    }
+
     input.click()
   }, [user, fetchFiles])
 
