@@ -32,7 +32,7 @@ export default function FilesPage() {
           const isImage = file.mimeType?.includes('image')
           const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT?.trim() || ''
           const thumbnailUrl = isImage
-            ? `${endpoint}/storage/buckets/files/files/${file.fileId}/preview?width=400&height=300&output=jpg`
+            ? `${endpoint}/storage/buckets/files/${file.fileId}/preview?width=400&height=300&output=jpg`
             : undefined
 
           return {
