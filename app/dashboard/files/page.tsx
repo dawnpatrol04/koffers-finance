@@ -27,17 +27,25 @@ export default function FilesPage() {
         const data = await response.json()
 
         // Map API files to FileDocument type
-        const mappedFiles: FileDocument[] = (data.files || []).map((file: any) => ({
-          id: file.$id || file.fileId,
-          name: file.fileName,
-          type: file.mimeType?.includes('image') ? 'receipt' : 'document',
-          size: file.fileSize,
-          uploadedAt: new Date(file.createdAt).toLocaleDateString('en-US'),
-          isReceipt: file.mimeType?.includes('image') || false,
-          // For now, no receipt data since OCR isn't implemented
-          matchStatus: undefined,
-          thumbnailUrl: undefined,
-        }))
+        const mappedFiles: FileDocument[] = (data.files || []).map((file: any) => {
+          // Generate preview URL for images using Appwrite's preview API
+          const isImage = file.mimeType?.includes('image')
+          const thumbnailUrl = isImage
+            ? `${process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT}/storage/buckets/${process.env.NEXT_PUBLIC_APPWRITE_BUCKET_FILES}/files/${file.fileId}/preview?width=400&height=300&output=jpg`
+            : undefined
+
+          return {
+            id: file.$id || file.fileId,
+            name: file.fileName,
+            type: isImage ? 'receipt' : 'document',
+            size: file.fileSize,
+            uploadedAt: new Date(file.createdAt).toLocaleDateString('en-US'),
+            isReceipt: isImage,
+            // For now, no receipt data since OCR isn't implemented
+            matchStatus: undefined,
+            thumbnailUrl,
+          }
+        })
 
         setFiles(mappedFiles)
       }
