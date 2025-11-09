@@ -57,7 +57,6 @@ export const COLLECTIONS = {
 
   // MCP & API
   API_KEYS: 'apiKeys',
-  TRANSACTION_ENRICHMENT: 'transactionEnrichment',
 } as const;
 
 // Storage bucket IDs
