@@ -1,5 +1,8 @@
 # CLAUDE.md - Current Mission
 
+**⚠️ NOT WORKING ON LOCALHOST! All testing must be done on production (koffers.ai)**
+**⚠️ ONLY DEPLOY WITH VERCEL CLI! DO NOT USE GITHUB PUSH TO DEPLOY - IT CAUSES ISSUES!**
+
 ## WORKING DIRECTIVE
 
 **KEEP GOING. DO NOT STOP. JUST KEEP GOING.**

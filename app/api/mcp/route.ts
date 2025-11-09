@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
-import { Query } from 'node-appwrite';
+import { databases, storage, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { Query, ID } from 'node-appwrite';
 
 /**
  * MCP (Model Context Protocol) Server Endpoint
@@ -250,6 +250,126 @@ export async function POST(request: NextRequest) {
                   }
                 },
                 required: []
+              }
+            },
+            {
+              name: 'list_unprocessed_files',
+              description: 'Get list of files/receipts that have not been processed yet (ocrStatus=pending)',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  limit: {
+                    type: 'number',
+                    description: 'Max number of files to return (default: 50)'
+                  }
+                },
+                required: []
+              }
+            },
+            {
+              name: 'download_file',
+              description: 'Download a file from storage and save to /tmp for Claude Code to view',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  fileId: {
+                    type: 'string',
+                    description: 'The file ID from the files collection'
+                  }
+                },
+                required: ['fileId']
+              }
+            },
+            {
+              name: 'search_transactions',
+              description: 'Search for transactions by amount, date range, and optionally merchant name',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  amount: {
+                    type: 'number',
+                    description: 'Transaction amount to search for'
+                  },
+                  dateFrom: {
+                    type: 'string',
+                    description: 'Start date for search range (ISO format)'
+                  },
+                  dateTo: {
+                    type: 'string',
+                    description: 'End date for search range (ISO format)'
+                  },
+                  merchant: {
+                    type: 'string',
+                    description: 'Optional merchant name to filter by'
+                  }
+                },
+                required: ['amount', 'dateFrom', 'dateTo']
+              }
+            },
+            {
+              name: 'link_file_to_transaction',
+              description: 'Link a receipt file to a transaction and mark file as processed',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  fileId: {
+                    type: 'string',
+                    description: 'ID from files collection'
+                  },
+                  transactionId: {
+                    type: 'string',
+                    description: 'ID from transactions collection'
+                  }
+                },
+                required: ['fileId', 'transactionId']
+              }
+            },
+            {
+              name: 'save_receipt_items',
+              description: 'Save line items extracted from a receipt to the receiptItems collection',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  transactionId: {
+                    type: 'string',
+                    description: 'Transaction ID to link items to'
+                  },
+                  items: {
+                    type: 'array',
+                    description: 'Array of receipt line items',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        name: {
+                          type: 'string',
+                          description: 'Item name/description'
+                        },
+                        quantity: {
+                          type: 'number',
+                          description: 'Quantity purchased'
+                        },
+                        price: {
+                          type: 'number',
+                          description: 'Unit price'
+                        },
+                        totalPrice: {
+                          type: 'number',
+                          description: 'Total price (quantity * price)'
+                        },
+                        category: {
+                          type: 'string',
+                          description: 'Optional item category'
+                        },
+                        sku: {
+                          type: 'string',
+                          description: 'Optional SKU/product code'
+                        }
+                      },
+                      required: ['name', 'quantity', 'price']
+                    }
+                  }
+                },
+                required: ['transactionId', 'items']
               }
             }
           ]
@@ -582,6 +702,214 @@ export async function POST(request: NextRequest) {
                       createdAt: e.createdAt
                     })),
                     total: enrichmentsList.total
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'list_unprocessed_files':
+            const unprocessedFiles = await databases.listDocuments(
+              DATABASE_ID,
+              'files',
+              [
+                Query.equal('userId', userId),
+                Query.equal('ocrStatus', 'pending'),
+                Query.limit(toolArgs.limit || 50),
+                Query.orderDesc('createdAt')
+              ]
+            );
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    files: unprocessedFiles.documents.map((f: any) => ({
+                      id: f.$id,
+                      fileId: f.fileId,
+                      fileName: f.fileName,
+                      mimeType: f.mimeType,
+                      fileSize: f.fileSize,
+                      createdAt: f.createdAt,
+                      ocrStatus: f.ocrStatus
+                    })),
+                    total: unprocessedFiles.total
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'download_file':
+            // Get file metadata from database
+            const fileRecords = await databases.listDocuments(
+              DATABASE_ID,
+              'files',
+              [Query.equal('fileId', toolArgs.fileId), Query.limit(1)]
+            );
+
+            if (fileRecords.documents.length === 0) {
+              throw new Error(`File not found: ${toolArgs.fileId}`);
+            }
+
+            const fileRecord = fileRecords.documents[0];
+
+            // Download file from Appwrite storage
+            const fileBuffer = await storage.getFileDownload('files', toolArgs.fileId);
+
+            // Save to /tmp
+            const fs = require('fs');
+            const path = require('path');
+            const ext = fileRecord.fileName.split('.').pop() || 'jpg';
+            const tmpPath = path.join('/tmp', `receipt_${toolArgs.fileId}.${ext}`);
+
+            fs.writeFileSync(tmpPath, Buffer.from(fileBuffer));
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    filePath: tmpPath,
+                    fileName: fileRecord.fileName,
+                    mimeType: fileRecord.mimeType,
+                    fileSize: fileRecord.fileSize,
+                    message: `File downloaded to ${tmpPath}. You can now view this image.`
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'search_transactions':
+            const { amount, dateFrom, dateTo, merchant } = toolArgs;
+
+            // Query transactions collection
+            const searchQueries = [
+              Query.equal('userId', userId),
+              Query.greaterThanEqual('date', dateFrom),
+              Query.lessThanEqual('date', dateTo),
+              Query.limit(100)
+            ];
+
+            const txnResults = await databases.listDocuments(
+              DATABASE_ID,
+              'transactions',
+              searchQueries
+            );
+
+            // Filter by amount (with tolerance) and optionally merchant
+            const matches = txnResults.documents
+              .filter((txn: any) => {
+                const amountMatch = Math.abs(txn.amount - amount) < 0.01;
+                const merchantMatch = !merchant ||
+                  txn.merchant.toLowerCase().includes(merchant.toLowerCase());
+                return amountMatch && merchantMatch;
+              })
+              .map((txn: any) => ({
+                id: txn.$id,
+                date: txn.date,
+                amount: txn.amount,
+                merchant: txn.merchant,
+                description: txn.description,
+                categoryId: txn.categoryId,
+                fileId: txn.fileId,
+                hasReceipt: !!txn.fileId
+              }));
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    matches,
+                    total: matches.length,
+                    searchParams: { amount, dateFrom, dateTo, merchant }
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'link_file_to_transaction':
+            // Update transaction with fileId
+            await databases.updateDocument(
+              DATABASE_ID,
+              'transactions',
+              toolArgs.transactionId,
+              { fileId: toolArgs.fileId }
+            );
+
+            // Update file ocrStatus to completed
+            const filesToUpdate = await databases.listDocuments(
+              DATABASE_ID,
+              'files',
+              [Query.equal('fileId', toolArgs.fileId), Query.limit(1)]
+            );
+
+            if (filesToUpdate.documents.length > 0) {
+              await databases.updateDocument(
+                DATABASE_ID,
+                'files',
+                filesToUpdate.documents[0].$id,
+                { ocrStatus: 'completed' }
+              );
+            }
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    fileId: toolArgs.fileId,
+                    transactionId: toolArgs.transactionId,
+                    message: 'Receipt linked to transaction successfully'
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'save_receipt_items':
+            const createdItems = [];
+
+            for (let i = 0; i < toolArgs.items.length; i++) {
+              const item = toolArgs.items[i];
+              const newItem = await databases.createDocument(
+                DATABASE_ID,
+                'receiptItems',
+                ID.unique(),
+                {
+                  transactionId: toolArgs.transactionId,
+                  name: item.name,
+                  quantity: item.quantity,
+                  price: item.price,
+                  totalPrice: item.totalPrice || (item.quantity * item.price),
+                  category: item.category || null,
+                  sku: item.sku || null,
+                  sortOrder: i
+                }
+              );
+              createdItems.push(newItem.$id);
+            }
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    itemsCreated: createdItems.length,
+                    itemIds: createdItems,
+                    transactionId: toolArgs.transactionId
                   }, null, 2)
                 }]
               }
