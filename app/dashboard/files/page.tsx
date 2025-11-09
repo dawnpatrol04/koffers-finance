@@ -50,6 +50,8 @@ export default function FilesPage() {
               ).href
             : undefined
 
+          console.log('File:', file.fileName, 'Thumbnail URL:', thumbnailUrl)
+
           return {
             id: file.$id || file.fileId,
             name: file.fileName,
