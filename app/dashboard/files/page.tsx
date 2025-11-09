@@ -9,6 +9,7 @@ import type { FileDocument } from "@/types/file"
 import Link from "next/link"
 import { useUser } from "@/contexts/user-context"
 import { useEffect, useCallback } from "react"
+import { storage } from "@/lib/appwrite-client"
 
 export default function FilesPage() {
   const { user } = useUser()
@@ -28,11 +29,25 @@ export default function FilesPage() {
 
         // Map API files to FileDocument type
         const mappedFiles: FileDocument[] = (data.files || []).map((file: any) => {
-          // Generate preview URL for images using Appwrite's preview API
+          // Generate preview URL for images using Appwrite's client SDK
+          // This uses the authenticated session and respects file permissions
           const isImage = file.mimeType?.includes('image')
-          const endpoint = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT?.trim() || ''
           const thumbnailUrl = isImage
-            ? `${endpoint}/storage/buckets/files/${file.fileId}/preview?width=400&height=300&output=jpg`
+            ? storage.getFilePreview(
+                'files', // bucket ID
+                file.fileId,
+                400, // width
+                300, // height
+                'center', // gravity
+                100, // quality
+                0, // border width
+                '', // border color
+                0, // border radius
+                1, // opacity
+                0, // rotation
+                '#FFFFFF', // background
+                'jpg' // output format
+              ).href
             : undefined
 
           return {
