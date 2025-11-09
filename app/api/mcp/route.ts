@@ -262,9 +262,10 @@ export async function POST(request: NextRequest) {
 
         switch (toolName) {
           case 'get_accounts':
+            // Query the accounts collection (not PLAID_ACCOUNTS)
             const accountsResponse = await databases.listDocuments(
               DATABASE_ID,
-              COLLECTIONS.PLAID_ACCOUNTS,
+              COLLECTIONS.ACCOUNTS,
               [Query.equal('userId', userId)]
             );
 
@@ -277,11 +278,13 @@ export async function POST(request: NextRequest) {
                   text: JSON.stringify({
                     accounts: accountsResponse.documents.map((acc: any) => ({
                       id: acc.$id,
+                      plaidAccountId: acc.plaidAccountId,
                       name: acc.name,
                       type: acc.type,
-                      subtype: acc.subtype,
-                      balance: acc.balances?.current || 0,
-                      currency: acc.balances?.iso_currency_code || 'USD'
+                      institution: acc.institution,
+                      lastFour: acc.lastFour,
+                      balance: acc.currentBalance,
+                      currency: 'USD'
                     })),
                     total: accountsResponse.total
                   }, null, 2)
@@ -290,32 +293,64 @@ export async function POST(request: NextRequest) {
             });
 
           case 'get_transactions':
-            const queries = [Query.equal('userId', userId)];
+            // Query plaidTransactions collection - filter by userId and accountId if provided
+            const txnQueries = [Query.equal('userId', userId)];
 
             if (toolArgs.accountId) {
-              queries.push(Query.equal('accountId', toolArgs.accountId));
+              txnQueries.push(Query.equal('plaidAccountId', toolArgs.accountId));
             }
 
-            if (toolArgs.category) {
-              queries.push(Query.equal('category', toolArgs.category));
-            }
-
-            if (toolArgs.startDate) {
-              queries.push(Query.greaterThanEqual('date', toolArgs.startDate));
-            }
-
-            if (toolArgs.endDate) {
-              queries.push(Query.lessThanEqual('date', toolArgs.endDate));
-            }
-
-            queries.push(Query.limit(Math.min(toolArgs.limit || 50, 500)));
-            queries.push(Query.orderDesc('date'));
+            // Get more than requested since we'll filter in memory
+            txnQueries.push(Query.limit(Math.min(toolArgs.limit || 50, 500)));
+            txnQueries.push(Query.orderDesc('$createdAt'));
 
             const transactionsResponse = await databases.listDocuments(
               DATABASE_ID,
               COLLECTIONS.PLAID_TRANSACTIONS,
-              queries
+              txnQueries
             );
+
+            // Parse rawData and filter/format transactions
+            let transactions = transactionsResponse.documents
+              .map((doc: any) => {
+                try {
+                  const txn = JSON.parse(doc.rawData);
+                  return {
+                    id: doc.$id,
+                    plaidTransactionId: doc.plaidTransactionId,
+                    accountId: doc.plaidAccountId,
+                    date: txn.date || txn.authorized_date,
+                    name: txn.name || txn.merchant_name,
+                    amount: txn.amount,
+                    category: txn.category ? txn.category.join(', ') : 'Uncategorized',
+                    merchantName: txn.merchant_name || txn.name,
+                    pending: txn.pending || false,
+                    paymentChannel: txn.payment_channel
+                  };
+                } catch (e) {
+                  console.error('Error parsing transaction rawData:', e);
+                  return null;
+                }
+              })
+              .filter((txn: any) => txn !== null);
+
+            // Apply date filters if provided
+            if (toolArgs.startDate) {
+              transactions = transactions.filter((txn: any) => txn.date >= toolArgs.startDate);
+            }
+            if (toolArgs.endDate) {
+              transactions = transactions.filter((txn: any) => txn.date <= toolArgs.endDate);
+            }
+
+            // Apply category filter if provided
+            if (toolArgs.category) {
+              transactions = transactions.filter((txn: any) =>
+                txn.category.toLowerCase().includes(toolArgs.category.toLowerCase())
+              );
+            }
+
+            // Sort by date descending
+            transactions.sort((a: any, b: any) => b.date.localeCompare(a.date));
 
             return NextResponse.json({
               jsonrpc: '2.0',
@@ -324,45 +359,47 @@ export async function POST(request: NextRequest) {
                 content: [{
                   type: 'text',
                   text: JSON.stringify({
-                    transactions: transactionsResponse.documents.map((txn: any) => ({
-                      id: txn.$id,
-                      date: txn.date,
-                      name: txn.name,
-                      amount: txn.amount,
-                      category: txn.category,
-                      merchantName: txn.merchantName,
-                      pending: txn.pending
-                    })),
-                    total: transactionsResponse.total
+                    transactions: transactions.slice(0, toolArgs.limit || 50),
+                    total: transactions.length,
+                    rawTotal: transactionsResponse.total
                   }, null, 2)
                 }]
               }
             });
 
           case 'get_spending_summary':
-            const endDate = toolArgs.endDate || new Date().toISOString().split('T')[0];
-            const startDate = toolArgs.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            const summaryEndDate = toolArgs.endDate || new Date().toISOString().split('T')[0];
+            const summaryStartDate = toolArgs.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+            // Get all transactions for user (we'll filter dates in memory)
             const summaryTransactions = await databases.listDocuments(
               DATABASE_ID,
               COLLECTIONS.PLAID_TRANSACTIONS,
               [
                 Query.equal('userId', userId),
-                Query.greaterThanEqual('date', startDate),
-                Query.lessThanEqual('date', endDate),
                 Query.limit(5000) // Get up to 5000 transactions for summary
               ]
             );
 
-            // Group by category and calculate totals
+            // Parse rawData, filter by date, and group by category
             const categoryTotals: Record<string, number> = {};
             let totalSpending = 0;
 
-            summaryTransactions.documents.forEach((txn: any) => {
-              if (txn.amount > 0) { // Only count expenses (positive amounts in Plaid)
-                const category = txn.category || 'Uncategorized';
-                categoryTotals[category] = (categoryTotals[category] || 0) + txn.amount;
-                totalSpending += txn.amount;
+            summaryTransactions.documents.forEach((doc: any) => {
+              try {
+                const txn = JSON.parse(doc.rawData);
+                const txnDate = txn.date || txn.authorized_date;
+
+                // Filter by date range
+                if (txnDate >= summaryStartDate && txnDate <= summaryEndDate) {
+                  if (txn.amount > 0) { // Only count expenses (positive amounts in Plaid)
+                    const category = txn.category ? txn.category.join(', ') : 'Uncategorized';
+                    categoryTotals[category] = (categoryTotals[category] || 0) + txn.amount;
+                    totalSpending += txn.amount;
+                  }
+                }
+              } catch (e) {
+                console.error('Error parsing transaction rawData:', e);
               }
             });
 
@@ -373,13 +410,13 @@ export async function POST(request: NextRequest) {
                 content: [{
                   type: 'text',
                   text: JSON.stringify({
-                    period: { startDate, endDate },
+                    period: { startDate: summaryStartDate, endDate: summaryEndDate },
                     totalSpending,
                     categories: Object.entries(categoryTotals)
                       .map(([category, amount]) => ({
                         category,
                         amount,
-                        percentage: ((amount / totalSpending) * 100).toFixed(2) + '%'
+                        percentage: totalSpending > 0 ? ((amount / totalSpending) * 100).toFixed(2) + '%' : '0%'
                       }))
                       .sort((a, b) => b.amount - a.amount)
                   }, null, 2)

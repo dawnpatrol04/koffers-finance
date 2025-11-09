@@ -54,7 +54,6 @@ export const COLLECTIONS = {
   // Plaid integration
   PLAID_ITEMS: 'plaidItems',
   PLAID_TRANSACTIONS: 'plaidTransactions',
-  PLAID_ACCOUNTS: 'plaidAccounts',
 
   // MCP & API
   API_KEYS: 'apiKeys',
