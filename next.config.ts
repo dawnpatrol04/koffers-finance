@@ -5,6 +5,16 @@ const config: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.parsons.ai',
+        port: '',
+        pathname: '/v1/storage/**',
+      },
+    ],
+  },
 };
 
 export default config;
