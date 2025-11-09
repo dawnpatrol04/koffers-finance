@@ -9,7 +9,6 @@ import type { FileDocument } from "@/types/file"
 import Link from "next/link"
 import { useUser } from "@/contexts/user-context"
 import { useEffect, useCallback } from "react"
-import { storage } from "@/lib/appwrite-client"
 
 export default function FilesPage() {
   const { user } = useUser()
@@ -32,22 +31,9 @@ export default function FilesPage() {
           // Generate preview URL for images using Appwrite's client SDK
           // This uses the authenticated session and respects file permissions
           const isImage = file.mimeType?.includes('image')
+          // Use server-side proxy API to fetch thumbnail with authentication
           const thumbnailUrl = isImage
-            ? storage.getFilePreview(
-                'files', // bucket ID
-                file.fileId,
-                400, // width
-                300, // height
-                'center', // gravity
-                100, // quality
-                0, // border width
-                '', // border color
-                0, // border radius
-                1, // opacity
-                0, // rotation
-                '#FFFFFF', // background
-                'jpg' // output format
-              ).toString()
+            ? `/api/files/preview/${file.fileId}`
             : undefined
 
           console.log('File:', file.fileName, 'Thumbnail URL:', thumbnailUrl, 'isImage:', isImage, 'fileId:', file.fileId)
