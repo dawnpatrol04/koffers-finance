@@ -51,15 +51,18 @@ async function validateApiKey(apiKey: string): Promise<string | null> {
 // MCP Server handler
 export async function POST(request: NextRequest) {
   try {
-    // Get API key from Authorization header or env
+    // Get API key from multiple sources: Authorization header, env, x-api-key header, OR query param
     const authHeader = request.headers.get('authorization');
+    const url = new URL(request.url);
     const apiKey = authHeader?.replace('Bearer ', '') ||
                    process.env.KOFFERS_API_KEY ||
-                   request.headers.get('x-api-key');
+                   request.headers.get('x-api-key') ||
+                   url.searchParams.get('apiKey') ||
+                   url.searchParams.get('api_key');
 
     if (!apiKey) {
       return NextResponse.json(
-        { error: 'API key required. Set KOFFERS_API_KEY or use Authorization header.' },
+        { error: 'API key required. Set KOFFERS_API_KEY, use Authorization header, or pass as ?apiKey= query param.' },
         { status: 401 }
       );
     }

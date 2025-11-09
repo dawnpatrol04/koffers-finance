@@ -22,8 +22,8 @@ const client = new Client()
 
 const databases = new Databases(client);
 
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_db';
-const COLLECTION_ID = 'api_keys';
+const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc';
+const COLLECTION_ID = 'apiKeys';
 
 async function createCollection() {
   try {
