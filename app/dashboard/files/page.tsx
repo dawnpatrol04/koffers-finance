@@ -47,10 +47,10 @@ export default function FilesPage() {
                 0, // rotation
                 '#FFFFFF', // background
                 'jpg' // output format
-              ).href
+              ).toString()
             : undefined
 
-          console.log('File:', file.fileName, 'Thumbnail URL:', thumbnailUrl)
+          console.log('File:', file.fileName, 'Thumbnail URL:', thumbnailUrl, 'isImage:', isImage, 'fileId:', file.fileId)
 
           return {
             id: file.$id || file.fileId,
