@@ -36,8 +36,6 @@ export default function FilesPage() {
             ? `/api/files/preview/${file.fileId}`
             : undefined
 
-          console.log('File:', file.fileName, 'Thumbnail URL:', thumbnailUrl, 'isImage:', isImage, 'fileId:', file.fileId)
-
           return {
             id: file.$id || file.fileId,
             name: file.fileName,
