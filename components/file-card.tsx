@@ -4,7 +4,6 @@ import { cn } from "@/lib/utils"
 import { FileText, Receipt, FileCheck, Clock, AlertCircle, MapPin } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import type { FileDocument } from "@/types/file"
-import Image from "next/image"
 
 interface FileCardProps {
   file: FileDocument
@@ -71,7 +70,7 @@ function ReceiptCard({ file, onClick }: FileCardProps) {
       {/* Image Preview */}
       <div className="aspect-[4/3] bg-muted rounded-t-lg overflow-hidden relative">
         {file.thumbnailUrl ? (
-          <Image src={file.thumbnailUrl || "/placeholder.svg"} alt={file.name} fill className="object-cover" />
+          <img src={file.thumbnailUrl} alt={file.name} className="w-full h-full object-cover" />
         ) : (
           <div className="flex items-center justify-center h-full">
             <Receipt className="h-16 w-16 text-muted-foreground/20" />
@@ -134,7 +133,7 @@ function DocumentCard({ file, onClick }: FileCardProps) {
       {/* Document Preview */}
       <div className="aspect-[4/3] bg-muted rounded-t-lg overflow-hidden relative">
         {file.thumbnailUrl ? (
-          <Image src={file.thumbnailUrl || "/placeholder.svg"} alt={file.name} fill className="object-cover" />
+          <img src={file.thumbnailUrl} alt={file.name} className="w-full h-full object-cover" />
         ) : (
           <div className="flex items-center justify-center h-full">
             <FileText className="h-16 w-16 text-muted-foreground/20" />
