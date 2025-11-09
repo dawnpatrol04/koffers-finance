@@ -15,40 +15,17 @@ export async function GET(
       );
     }
 
-    // Get file preview from Appwrite using server SDK (has API key authentication)
-    const preview = storage.getFilePreview(
+    // Get file view directly from Appwrite using server SDK
+    // This returns the actual file as a Buffer
+    const file = await storage.getFileView(
       STORAGE_BUCKETS.FILES,
-      fileId,
-      400, // width
-      300, // height
-      'center', // gravity
-      100, // quality
-      0, // border width
-      '', // border color
-      0, // border radius
-      1, // opacity
-      0, // rotation
-      '#FFFFFF', // background
-      'jpg' // output format
+      fileId
     );
 
-    // Fetch the actual image data
-    const response = await fetch(preview.toString());
-
-    if (!response.ok) {
-      return NextResponse.json(
-        { error: 'Failed to fetch preview' },
-        { status: response.status }
-      );
-    }
-
-    // Get the image as a buffer
-    const imageBuffer = await response.arrayBuffer();
-
     // Return the image with appropriate headers
-    return new NextResponse(imageBuffer, {
+    return new NextResponse(file, {
       headers: {
-        'Content-Type': response.headers.get('Content-Type') || 'image/jpeg',
+        'Content-Type': 'image/jpeg',
         'Cache-Control': 'public, max-age=31536000, immutable',
       },
     });
