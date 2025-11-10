@@ -509,29 +509,24 @@ export async function POST(request: NextRequest) {
             // Download file from Appwrite storage
             const fileBuffer = await storage.getFileDownload('files', toolArgs.fileId);
 
-            // Save to /tmp
-            const fs = require('fs');
-            const path = require('path');
-            const ext = fileRecord.fileName.split('.').pop() || 'jpg';
-            const tmpPath = path.join('/tmp', `receipt_${toolArgs.fileId}.${ext}`);
-
-            fs.writeFileSync(tmpPath, Buffer.from(fileBuffer));
+            // Convert to base64 for Claude Code vision processing
+            const base64Data = Buffer.from(fileBuffer).toString('base64');
 
             return NextResponse.json({
               jsonrpc: '2.0',
               id: body.id,
               result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    success: true,
-                    filePath: tmpPath,
-                    fileName: fileRecord.fileName,
-                    mimeType: fileRecord.mimeType,
-                    fileSize: fileRecord.fileSize,
-                    message: `File downloaded to ${tmpPath}. You can now view this image.`
-                  }, null, 2)
-                }]
+                content: [
+                  {
+                    type: 'image',
+                    data: base64Data,
+                    mimeType: fileRecord.mimeType
+                  },
+                  {
+                    type: 'text',
+                    text: `Image: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${fileRecord.mimeType}`
+                  }
+                ]
               }
             });
 
