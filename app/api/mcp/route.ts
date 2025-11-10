@@ -509,24 +509,51 @@ export async function POST(request: NextRequest) {
             // Download file from Appwrite storage
             const fileBuffer = await storage.getFileDownload('files', toolArgs.fileId);
 
-            // Convert to base64 for Claude Code vision processing
+            // Convert to base64
             const base64Data = Buffer.from(fileBuffer).toString('base64');
+
+            // Return appropriate content type based on mimeType
+            const mimeType = fileRecord.mimeType;
+            const content: any[] = [];
+
+            if (mimeType.startsWith('image/')) {
+              // Return as ImageContent for vision processing
+              content.push({
+                type: 'image',
+                data: base64Data,
+                mimeType: mimeType
+              });
+              content.push({
+                type: 'text',
+                text: `Image: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}`
+              });
+            } else if (mimeType === 'application/pdf') {
+              // Return as EmbeddedResource for PDFs
+              content.push({
+                type: 'resource',
+                resource: {
+                  uri: `file:///${fileRecord.fileName}`,
+                  mimeType: 'application/pdf',
+                  blob: base64Data
+                }
+              });
+              content.push({
+                type: 'text',
+                text: `PDF Document: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nPages: Use Claude's PDF processing to extract content`
+              });
+            } else {
+              // Return as text with base64 for other file types
+              content.push({
+                type: 'text',
+                text: `File: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}\n\nBase64 Data:\n${base64Data.substring(0, 200)}... (truncated)`
+              });
+            }
 
             return NextResponse.json({
               jsonrpc: '2.0',
               id: body.id,
               result: {
-                content: [
-                  {
-                    type: 'image',
-                    data: base64Data,
-                    mimeType: fileRecord.mimeType
-                  },
-                  {
-                    type: 'text',
-                    text: `Image: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${fileRecord.mimeType}`
-                  }
-                ]
+                content: content
               }
             });
 

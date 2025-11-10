@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage, databases, ID, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-server';
 import { InputFile } from 'node-appwrite/file';
+import sharp from 'sharp';
+import { fileTypeFromBuffer } from 'file-type';
 
 export async function POST(request: NextRequest) {
   try {
@@ -29,13 +31,48 @@ export async function POST(request: NextRequest) {
     }
 
     // Convert file to buffer
-    const buffer = Buffer.from(await file.arrayBuffer());
+    let buffer = Buffer.from(await file.arrayBuffer());
+
+    // Detect actual file type from magic numbers (not extension)
+    const detectedType = await fileTypeFromBuffer(buffer);
+    let finalMimeType = file.type || detectedType?.mime || 'application/octet-stream';
+    let finalFileName = file.name;
+    let finalBuffer = buffer;
+
+    // Handle HEIC conversion to JPEG
+    if (detectedType?.mime === 'image/heic' || detectedType?.mime === 'image/heif') {
+      console.log('Converting HEIC to JPEG...');
+
+      // Convert HEIC to JPEG at 90% quality
+      finalBuffer = await sharp(buffer)
+        .jpeg({ quality: 90 })
+        .toBuffer();
+
+      // Update metadata
+      finalMimeType = 'image/jpeg';
+      finalFileName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+
+      console.log(`Converted ${file.name} (${buffer.length} bytes) to ${finalFileName} (${finalBuffer.length} bytes)`);
+    }
+
+    // For other images, ensure they're in supported format
+    else if (detectedType?.mime?.startsWith('image/') &&
+             !['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(detectedType.mime)) {
+      console.log(`Converting ${detectedType.mime} to JPEG...`);
+
+      finalBuffer = await sharp(buffer)
+        .jpeg({ quality: 90 })
+        .toBuffer();
+
+      finalMimeType = 'image/jpeg';
+      finalFileName = file.name.replace(/\.[^.]+$/, '.jpg');
+    }
 
     // Upload to Appwrite Storage
     const uploadedFile = await storage.createFile(
       STORAGE_BUCKETS.FILES,
       ID.unique(),
-      InputFile.fromBuffer(buffer, file.name),
+      InputFile.fromBuffer(finalBuffer, finalFileName),
       [`read("user:${userId}")`, `delete("user:${userId}")`]
     );
 
@@ -47,9 +84,9 @@ export async function POST(request: NextRequest) {
       {
         userId,
         fileId: uploadedFile.$id,
-        fileName: file.name,
-        mimeType: file.type,
-        fileSize: file.size,
+        fileName: finalFileName,
+        mimeType: finalMimeType,
+        fileSize: finalBuffer.length,
         ocrStatus: 'pending',
         createdAt: new Date().toISOString(),
       }
