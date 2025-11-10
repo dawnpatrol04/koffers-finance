@@ -37,7 +37,7 @@ export default function FilesPage() {
             : undefined
 
           return {
-            id: file.$id || file.fileId,
+            id: file.fileId, // Use fileId (storage ID) as the primary ID for delete operations
             name: file.fileName,
             type: isImage ? 'receipt' : 'document',
             size: file.fileSize,
