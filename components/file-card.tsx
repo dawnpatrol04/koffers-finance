@@ -1,24 +1,26 @@
 "use client"
 
 import { cn } from "@/lib/utils"
-import { FileText, Receipt, FileCheck, Clock, AlertCircle, MapPin } from "lucide-react"
+import { FileText, Receipt, FileCheck, Clock, AlertCircle, MapPin, Trash2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
 import type { FileDocument } from "@/types/file"
 
 interface FileCardProps {
   file: FileDocument
   onClick?: (file: FileDocument) => void
+  onDelete?: (fileId: string) => void
 }
 
-export function FileCard({ file, onClick }: FileCardProps) {
+export function FileCard({ file, onClick, onDelete }: FileCardProps) {
   if (file.isReceipt) {
-    return <ReceiptCard file={file} onClick={onClick} />
+    return <ReceiptCard file={file} onClick={onClick} onDelete={onDelete} />
   }
 
-  return <DocumentCard file={file} onClick={onClick} />
+  return <DocumentCard file={file} onClick={onClick} onDelete={onDelete} />
 }
 
-function ReceiptCard({ file, onClick }: FileCardProps) {
+function ReceiptCard({ file, onClick, onDelete }: FileCardProps) {
   const matchStatus = file.matchStatus || "unmatched"
 
   const statusConfig = {
@@ -77,6 +79,21 @@ function ReceiptCard({ file, onClick }: FileCardProps) {
           </div>
         )}
 
+        {/* Delete Button */}
+        {onDelete && (
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute top-2 left-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(file.id)
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )}
+
         <div
           className={cn(
             "absolute top-2 right-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-md",
@@ -124,7 +141,7 @@ function ReceiptCard({ file, onClick }: FileCardProps) {
   )
 }
 
-function DocumentCard({ file, onClick }: FileCardProps) {
+function DocumentCard({ file, onClick, onDelete }: FileCardProps) {
   return (
     <button
       onClick={() => onClick?.(file)}
@@ -138,6 +155,21 @@ function DocumentCard({ file, onClick }: FileCardProps) {
           <div className="flex items-center justify-center h-full">
             <FileText className="h-16 w-16 text-muted-foreground/20" />
           </div>
+        )}
+
+        {/* Delete Button */}
+        {onDelete && (
+          <Button
+            variant="destructive"
+            size="icon"
+            className="absolute top-2 left-2 h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(file.id)
+            }}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
         )}
 
         {/* Document Type Badge */}
