@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useUser } from '@/contexts/user-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TransactionCard } from '@/components/transaction-card';
-import { Plus, Search, ArrowLeft } from 'lucide-react';
+import { TransactionSheet } from '@/components/sheets/transaction-sheet';
+import { useTransactionParams } from '@/hooks/use-transaction-params';
+import { Plus, Search, ArrowLeft, RefreshCw } from 'lucide-react';
 import type { Transaction } from '@/types/transaction';
 
 interface ApiTransaction {
@@ -24,15 +26,17 @@ interface ApiTransaction {
   paymentChannel: string;
 }
 
-export default function TransactionsPage() {
+function TransactionsContent() {
   const { user, loading: userLoading } = useUser();
   const router = useRouter();
+  const { setParams } = useTransactionParams();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
   const [searchQuery, setSearchQuery] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (userLoading) return;
@@ -99,6 +103,72 @@ export default function TransactionsPage() {
 
     fetchTransactions();
   }, [user?.$id, userLoading]);
+
+  const handleRefresh = async () => {
+    if (!user?.$id) return;
+
+    try {
+      setRefreshing(true);
+      setError(null);
+
+      // Call the fetch-data endpoint to refresh from Plaid
+      const response = await fetch(`/api/plaid/fetch-data?userId=${user.$id}`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Refetch transactions to get the latest
+        const txnResponse = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100`);
+        const txnData = await txnResponse.json();
+
+        if (txnData.success) {
+          const mappedTransactions: Transaction[] = txnData.transactions.map((t: ApiTransaction) => {
+            const categories = t.category ? JSON.parse(t.category) : [];
+            const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+
+            const formatDate = (dateString: string) => {
+              try {
+                const date = new Date(dateString);
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const year = date.getFullYear();
+                return `${month}/${day}/${year}`;
+              } catch {
+                return dateString;
+              }
+            };
+
+            return {
+              id: t.$id,
+              date: formatDate(t.date),
+              merchant: t.merchantName,
+              merchantSubtext: t.name,
+              amount: t.amount,
+              category: displayCategory,
+              channel: t.paymentChannel || 'Other',
+              status: t.pending ? 'pending' : 'completed',
+              hasReceipt: false,
+              hasCommentary: false,
+              isReviewed: false,
+              hasTags: false,
+              hasReminder: false,
+            } as Transaction;
+          });
+
+          setTransactions(mappedTransactions);
+        }
+      } else {
+        setError(data.error || 'Failed to refresh transactions');
+      }
+    } catch (err: any) {
+      console.error('Error refreshing transactions:', err);
+      setError(err.message);
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const filteredTransactions = transactions.filter(transaction => {
     let typeMatch = true;
@@ -201,6 +271,14 @@ export default function TransactionsPage() {
           <h1 className="text-4xl font-bold">Transactions</h1>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">{sortedTransactions.length} transactions</span>
+            <Button
+              variant="outline"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+              {refreshing ? 'Refreshing...' : 'Refresh'}
+            </Button>
             <Button>
               <Plus className="h-4 w-4 mr-2" />
               Add Transaction
@@ -257,6 +335,7 @@ export default function TransactionsPage() {
             <TransactionCard
               key={transaction.id}
               transaction={transaction}
+              onClick={(id) => setParams({ transactionId: id })}
               onUploadReceipt={(id) => console.log("Upload receipt for", id)}
               onAddCommentary={(id) => console.log("Add commentary for", id)}
               onMarkReviewed={(id) => console.log("Mark reviewed", id)}
@@ -272,6 +351,17 @@ export default function TransactionsPage() {
           )}
         </div>
       </div>
+
+      {/* Transaction Detail Sheet */}
+      <TransactionSheet />
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background p-6">Loading...</div>}>
+      <TransactionsContent />
+    </Suspense>
   );
 }

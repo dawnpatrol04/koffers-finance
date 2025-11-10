@@ -285,6 +285,15 @@ export async function POST(request: NextRequest) {
                 },
                 required: ['transactionId', 'items']
               }
+            },
+            {
+              name: 'refresh_transactions',
+              description: 'Manually refresh and sync all transactions from Plaid for all connected accounts. This fetches the latest transactions from banks and updates the database.',
+              inputSchema: {
+                type: 'object',
+                properties: {},
+                required: []
+              }
             }
           ]
           }
@@ -683,6 +692,40 @@ export async function POST(request: NextRequest) {
                     itemsCreated: createdItems.length,
                     itemIds: createdItems,
                     transactionId: toolArgs.transactionId
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'refresh_transactions':
+            // Call the fetch-data API endpoint internally
+            const fetchUrl = new URL('/api/plaid/fetch-data', request.url);
+            fetchUrl.searchParams.set('userId', userId);
+
+            const fetchResponse = await fetch(fetchUrl.toString(), {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+
+            if (!fetchResponse.ok) {
+              const errorData = await fetchResponse.json();
+              throw new Error(errorData.error || 'Failed to refresh transactions');
+            }
+
+            const refreshData = await fetchResponse.json();
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    message: 'Transactions refreshed successfully',
+                    ...refreshData
                   }, null, 2)
                 }]
               }

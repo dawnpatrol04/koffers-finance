@@ -29,6 +29,9 @@ export async function POST(request: NextRequest) {
         products: getPlaidProducts(),
         country_codes: getCountryCodes(),
         language: 'en',
+        transactions: {
+          days_requested: 730, // Request 24 months (730 days) of transaction history
+        },
       }),
     });
 

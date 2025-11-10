@@ -15,29 +15,35 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch recent transactions from the processed transactions collection
+    // Fetch recent transactions from the Plaid transactions collection
+    // Note: Can't order by 'date' since it's inside rawData JSON
+    // Using $createdAt instead for chronological ordering
     const transactionsResponse = await databases.listDocuments(
       DATABASE_ID,
-      COLLECTIONS.TRANSACTIONS,
+      COLLECTIONS.PLAID_TRANSACTIONS,
       [
         Query.equal('userId', userId),
-        Query.orderDesc('date'),
+        Query.orderDesc('$createdAt'),
         Query.limit(limit)
       ]
     );
 
-    // Format for frontend
-    const transactions = transactionsResponse.documents.map(doc => ({
-      $id: doc.$id,
-      transactionId: doc.plaidTransactionId,
-      date: doc.date,
-      name: doc.merchant,
-      merchantName: doc.merchant,
-      amount: doc.amount,
-      isoCurrencyCode: 'USD', // Default
-      pending: doc.status === 'pending',
-      category: JSON.stringify([doc.categoryId || 'Uncategorized']),
-    }));
+    // Format for frontend - parse rawData from each document
+    const transactions = transactionsResponse.documents.map(doc => {
+      const txnData = JSON.parse(doc.rawData);
+      return {
+        $id: doc.$id,
+        transactionId: doc.plaidTransactionId,
+        date: txnData.date || txnData.authorized_date,
+        name: txnData.name,
+        merchantName: txnData.merchant_name || txnData.name,
+        amount: txnData.amount,
+        isoCurrencyCode: txnData.iso_currency_code || 'USD',
+        pending: txnData.pending || false,
+        category: JSON.stringify(txnData.category || ['Uncategorized']),
+        paymentChannel: txnData.payment_channel || 'other',
+      };
+    });
 
     return NextResponse.json({
       success: true,

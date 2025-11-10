@@ -24,6 +24,7 @@ interface PlaidAccount {
   mask: string | null;
   currentBalance: number;
   availableBalance: number | null;
+  plaidItemDocId: string | null; // Appwrite document ID of the Plaid Item
 }
 
 interface PlaidItem {
@@ -38,6 +39,7 @@ export function ConnectedAccounts() {
   const [accounts, setAccounts] = useState<PlaidAccount[]>([]);
   const [items, setItems] = useState<Map<string, PlaidItem>>(new Map());
   const [loading, setLoading] = useState(true);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user?.$id) return;
@@ -74,6 +76,53 @@ export function ConnectedAccounts() {
 
     fetchAccounts();
   }, [user?.$id]);
+
+  const handleDisconnect = async (plaidItemDocId: string) => {
+    if (!user?.$id) return;
+
+    if (!confirm('Are you sure you want to disconnect this bank account? This will remove all associated transactions.')) {
+      return;
+    }
+
+    try {
+      setDisconnecting(plaidItemDocId);
+      const response = await fetch('/api/plaid/remove-item', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          itemId: plaidItemDocId, // This is the Appwrite document $id
+          userId: user.$id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Remove accounts from state
+        setAccounts((prev) => prev.filter((acc) => acc.plaidItemDocId !== plaidItemDocId));
+        setItems((prev) => {
+          const newItems = new Map(prev);
+          // Remove by finding the key that matches
+          for (const [key, value] of newItems.entries()) {
+            if (value.$id === plaidItemDocId) {
+              newItems.delete(key);
+              break;
+            }
+          }
+          return newItems;
+        });
+      } else {
+        alert(`Error disconnecting account: ${data.error}`);
+      }
+    } catch (err: any) {
+      console.error('Error disconnecting account:', err);
+      alert(`Error disconnecting account: ${err.message}`);
+    } finally {
+      setDisconnecting(null);
+    }
+  };
 
   if (loading) {
     return (
@@ -129,8 +178,13 @@ export function ConnectedAccounts() {
                   <h4 className="font-medium">
                     {itemAccounts[0]?.officialName || itemAccounts[0]?.name || 'Bank Connection'}
                   </h4>
-                  <Button variant="outline" size="sm">
-                    Disconnect
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDisconnect(itemAccounts[0]?.plaidItemDocId || '')}
+                    disabled={disconnecting === itemAccounts[0]?.plaidItemDocId}
+                  >
+                    {disconnecting === itemAccounts[0]?.plaidItemDocId ? 'Disconnecting...' : 'Disconnect'}
                   </Button>
                 </div>
 

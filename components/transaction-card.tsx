@@ -8,6 +8,7 @@ import type { Transaction } from "@/types/transaction"
 
 interface TransactionCardProps {
   transaction: Transaction
+  onClick?: (id: string) => void
   onUploadReceipt?: (id: string) => void
   onAddCommentary?: (id: string) => void
   onMarkReviewed?: (id: string) => void
@@ -17,6 +18,7 @@ interface TransactionCardProps {
 
 export function TransactionCard({
   transaction,
+  onClick,
   onUploadReceipt,
   onAddCommentary,
   onMarkReviewed,
@@ -29,8 +31,10 @@ export function TransactionCard({
   return (
     <>
       <div
+        onClick={() => onClick?.(transaction.id)}
         className={cn(
           "border rounded-lg transition-all duration-200",
+          onClick && "cursor-pointer hover:border-foreground/20",
           isComplete ? "bg-card border-border" : "bg-card border-dashed border-muted-foreground/30",
         )}
       >
@@ -167,7 +171,10 @@ interface ActionIconProps {
 function ActionIcon({ icon: Icon, label, completed, onClick }: ActionIconProps) {
   return (
     <button
-      onClick={onClick}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick?.();
+      }}
       disabled={completed}
       title={completed ? label : `Add ${label}`}
       className={cn(

@@ -21,9 +21,31 @@ export async function GET(request: NextRequest) {
       [Query.equal('userId', userId)]
     );
 
+    // For each account, we need to get the Plaid Item's Appwrite document ID
+    // The account has plaidItemId which is the Plaid item ID string (e.g., "item-123")
+    // We need to look up the plaidItems collection to get the document $id
+    const accountsWithItemDocId = await Promise.all(
+      accountsResponse.documents.map(async (account) => {
+        // Get the Plaid Item document
+        const itemsResponse = await databases.listDocuments(
+          DATABASE_ID,
+          COLLECTIONS.PLAID_ITEMS,
+          [
+            Query.equal('itemId', account.plaidItemId),
+            Query.limit(1)
+          ]
+        );
+
+        return {
+          ...account,
+          plaidItemDocId: itemsResponse.documents[0]?.$id || null
+        };
+      })
+    );
+
     return NextResponse.json({
       success: true,
-      accounts: accountsResponse.documents,
+      accounts: accountsWithItemDocId,
       total: accountsResponse.total
     });
 

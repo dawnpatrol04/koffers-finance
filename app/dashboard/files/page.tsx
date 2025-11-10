@@ -5,6 +5,7 @@ import { Upload, LayoutGrid, List, ArrowLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { FileCard } from "@/components/file-card"
 import { FileList } from "@/components/file-list"
+import { ImageModal } from "@/components/image-modal"
 import type { FileDocument } from "@/types/file"
 import Link from "next/link"
 import { useUser } from "@/contexts/user-context"
@@ -17,6 +18,7 @@ export default function FilesPage() {
   const [uploading, setUploading] = useState(false)
   const [files, setFiles] = useState<FileDocument[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedImage, setSelectedImage] = useState<FileDocument | null>(null)
 
   const fetchFiles = useCallback(async () => {
     if (!user) return
@@ -261,7 +263,7 @@ export default function FilesPage() {
             <FileCard
               key={file.id}
               file={file}
-              onClick={(file) => console.log("Clicked file:", file)}
+              onClick={(file) => setSelectedImage(file)}
               onDelete={handleDeleteFile}
             />
           ))}
@@ -269,8 +271,17 @@ export default function FilesPage() {
       ) : (
         <FileList
           files={files}
-          onFileClick={(file) => console.log("Clicked file:", file)}
+          onFileClick={(file) => setSelectedImage(file)}
           onDelete={handleDeleteFile}
+        />
+      )}
+
+      {/* Image Modal */}
+      {selectedImage && (
+        <ImageModal
+          imageUrl={selectedImage.thumbnailUrl || `/api/files/preview/${selectedImage.id}`}
+          fileName={selectedImage.name}
+          onClose={() => setSelectedImage(null)}
         />
       )}
     </div>

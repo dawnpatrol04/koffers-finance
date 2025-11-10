@@ -1,5 +1,10 @@
 # CLAUDE.md - Current Mission
 
+**⚠️ PRIMARY KOFFERS ACCOUNT (MCP Connected):**
+- Email: dawnpatrol04@gmail.com
+- Password: qwe123qwe
+- **USE THIS ACCOUNT FOR ALL TESTING - MCP is connected to this user**
+
 **⚠️ NOT WORKING ON LOCALHOST! All testing must be done on production (koffers.ai)**
 **⚠️ ONLY DEPLOY WITH VERCEL CLI! DO NOT USE GITHUB PUSH TO DEPLOY - IT CAUSES ISSUES!**
 
