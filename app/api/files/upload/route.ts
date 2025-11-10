@@ -3,6 +3,7 @@ import { storage, databases, ID, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } fro
 import { InputFile } from 'node-appwrite/file';
 import sharp from 'sharp';
 import { fileTypeFromBuffer } from 'file-type';
+import heicConvert from 'heic-convert';
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,10 +44,14 @@ export async function POST(request: NextRequest) {
     if (detectedType?.mime === 'image/heic' || detectedType?.mime === 'image/heif') {
       console.log('Converting HEIC to JPEG...');
 
-      // Convert HEIC to JPEG at 90% quality
-      finalBuffer = await sharp(buffer)
-        .jpeg({ quality: 90 })
-        .toBuffer();
+      // Convert HEIC to JPEG using heic-convert (pure JS, works on Vercel)
+      const outputBuffer = await heicConvert({
+        buffer: buffer,
+        format: 'JPEG',
+        quality: 0.9
+      });
+
+      finalBuffer = Buffer.from(outputBuffer);
 
       // Update metadata
       finalMimeType = 'image/jpeg';
