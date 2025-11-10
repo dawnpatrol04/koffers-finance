@@ -39,12 +39,12 @@ export default function FilesPage() {
           return {
             id: file.fileId, // Use fileId (storage ID) as the primary ID for delete operations
             name: file.fileName,
-            type: isImage ? 'receipt' : 'document',
+            type: file.ocrStatus === 'completed' ? 'receipt' : 'image',
             size: file.fileSize,
             uploadedAt: new Date(file.createdAt).toLocaleDateString('en-US'),
-            isReceipt: isImage,
-            // For now, no receipt data since OCR isn't implemented
-            matchStatus: undefined,
+            isReceipt: file.ocrStatus === 'completed', // Only treat as receipt after OCR
+            // Receipt data only exists after OCR processing
+            matchStatus: file.ocrStatus === 'completed' ? undefined : null,
             thumbnailUrl,
           }
         })
