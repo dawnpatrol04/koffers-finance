@@ -64,10 +64,11 @@ export function ConnectedAccounts() {
       try {
         setLoading(true);
 
-        // Use Appwrite SDK directly
+        // Use Appwrite SDK directly - filter by current user
         const response = await databases.listDocuments(
           DATABASE_ID,
-          'accounts'
+          'accounts',
+          [Query.equal('userId', user.$id)]
         );
 
         setAccounts(response.documents as any[] || []);
