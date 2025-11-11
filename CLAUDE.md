@@ -112,6 +112,19 @@ PLAID_SECRET="e9014837be734871fcdb6c3ea51e7c"
 ```
 Note: `.env.production` has wrong secret, Vercel env vars are correct.
 
+### What We Fixed
+1. **MCP refresh_transactions bug** - Was passing userId as query param instead of POST body ✅
+2. **Batched transaction import** - Now processes 10 transactions at a time with Promise.all instead of sequential ✅
+3. **Verified Plaid API works** - Tested manually, returns all 3,787 transactions correctly ✅
+
+### Current Blocker
+**Need to manually reconnect Chase bank account in UI:**
+- plaidItems collection is empty (got deleted when we clicked Disconnect)
+- accounts collection still has 3 accounts but they're orphaned (no plaidItem link)
+- Can't call `/api/plaid/fetch-data` because no plaidItems exist
+- Solution: Go to https://koffers.ai/dashboard/settings/accounts and click "Connect Bank Account"
+- Once reconnected, call MCP `refresh_transactions` tool to import all 3,787 transactions
+
 **🎉 MAJOR MILESTONE: Phase 4 & 5 Complete!**
 
 ### ✅ FULLY COMPLETED & DEPLOYED
