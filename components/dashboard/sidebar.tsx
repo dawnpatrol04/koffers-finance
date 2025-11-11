@@ -5,7 +5,6 @@ import { Icons } from "@/components/ui/icons";
 import Link from "next/link";
 import { useState } from "react";
 import { MainMenu } from "./main-menu";
-import { TeamDropdown } from "./team-dropdown";
 
 export function Sidebar() {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -34,8 +33,6 @@ export function Sidebar() {
       <div className="flex flex-col w-full pt-[70px] flex-1">
         <MainMenu isExpanded={isExpanded} />
       </div>
-
-      <TeamDropdown isExpanded={isExpanded} />
     </aside>
   );
 }
