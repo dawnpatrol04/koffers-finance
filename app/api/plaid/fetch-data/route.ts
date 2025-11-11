@@ -85,43 +85,47 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        // Fetch transactions (24 months)
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 24);
+        // Fetch transactions using /transactions/sync (24 months)
+        // Use cursor-based pagination for better reliability
+        let allTransactions: any[] = [];
+        let cursor: string | undefined = undefined;
+        let hasMore = true;
+        let pageCount = 0;
 
-        const transactionsResponse = await plaidClient.transactionsGet({
-          access_token: accessToken,
-          start_date: startDate.toISOString().split('T')[0],
-          end_date: endDate.toISOString().split('T')[0],
-          options: {
-            count: 500, // Max per request
-            offset: 0,
-          }
-        });
+        console.log(`🔄 Starting transactions/sync for item ${item.itemId} with 730 days history...`);
 
-        let allTransactions = transactionsResponse.data.transactions;
-        let hasMore = allTransactions.length < transactionsResponse.data.total_transactions;
-        let offset = 500;
-
-        // Paginate to get all transactions
         while (hasMore) {
-          const moreTransactions = await plaidClient.transactionsGet({
+          pageCount++;
+
+          const syncResponse = await plaidClient.transactionsSync({
             access_token: accessToken,
-            start_date: startDate.toISOString().split('T')[0],
-            end_date: endDate.toISOString().split('T')[0],
+            cursor: cursor,
             options: {
-              count: 500,
-              offset: offset,
-            }
+              count: 500, // Max per request
+              include_personal_finance_category: true,
+            },
           });
 
-          allTransactions = [...allTransactions, ...moreTransactions.data.transactions];
-          offset += 500;
-          hasMore = allTransactions.length < transactionsResponse.data.total_transactions;
+          // Add new transactions
+          const addedTransactions = syncResponse.data.added || [];
+          const modifiedTransactions = syncResponse.data.modified || [];
+
+          allTransactions = [...allTransactions, ...addedTransactions, ...modifiedTransactions];
+
+          console.log(`📄 Page ${pageCount}: +${addedTransactions.length} added, +${modifiedTransactions.length} modified (total: ${allTransactions.length})`);
+
+          // Update cursor and check if more data available
+          cursor = syncResponse.data.next_cursor;
+          hasMore = syncResponse.data.has_more;
+
+          // Safety check to prevent infinite loops
+          if (pageCount > 100) {
+            console.warn(`⚠️ Reached maximum page limit (100) for item ${item.itemId}`);
+            break;
+          }
         }
 
-        console.log(`💰 Fetched ${allTransactions.length} transactions for item ${item.itemId}`);
+        console.log(`💰 Fetched ${allTransactions.length} transactions for item ${item.itemId} in ${pageCount} pages`);
 
         // Store transactions with duplicate detection and progress tracking
         const totalTransactions = allTransactions.length;

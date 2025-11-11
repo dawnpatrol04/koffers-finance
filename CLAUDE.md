@@ -1,5 +1,8 @@
 # CLAUDE.md - Current Mission
 
+**🚨 THIS IS NOT SANDBOX DATA! THIS IS PRODUCTION ONLY! NOTHING IS MOCK OR SANDBOX! 🚨**
+**🚨 WE ARE USING REAL PLAID PRODUCTION DATA - NOT SANDBOX TEST DATA! 🚨**
+
 **⚠️ PRIMARY KOFFERS ACCOUNT (MCP Connected):**
 - Email: dawnpatrol04@gmail.com
 - Password: qwe123qwe
