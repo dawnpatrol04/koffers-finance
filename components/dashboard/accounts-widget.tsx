@@ -30,10 +30,11 @@ export function AccountsWidget() {
       try {
         setLoading(true);
 
-        // Use Appwrite SDK directly - automatically filtered by user session
+        // SECURITY: MUST filter by userId to prevent data leakage
         const response = await databases.listDocuments(
           DATABASE_ID,
-          'accounts'
+          'accounts',
+          [Query.equal('userId', user.$id)]
         );
 
         setAccounts(response.documents as any[]);

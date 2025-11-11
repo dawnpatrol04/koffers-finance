@@ -28,16 +28,20 @@ export function RunwayWidget() {
       try {
         setLoading(true);
 
-        // Fetch both accounts and transactions using Appwrite SDK
+        // SECURITY: MUST filter by userId to prevent data leakage
         const [accountsRes, transactionsRes] = await Promise.all([
           databases.listDocuments(
             DATABASE_ID,
-            'accounts'
+            'accounts',
+            [Query.equal('userId', user.$id)]
           ),
           databases.listDocuments(
             DATABASE_ID,
             'plaidTransactions',
-            [Query.limit(1000)]
+            [
+              Query.equal('userId', user.$id),
+              Query.limit(1000)
+            ]
           )
         ]);
 

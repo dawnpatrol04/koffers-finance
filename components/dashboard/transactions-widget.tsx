@@ -26,11 +26,14 @@ export function TransactionsWidget() {
       try {
         setLoading(true);
 
-        // Use Appwrite SDK directly - automatically filtered by user session
+        // SECURITY: MUST filter by userId to prevent data leakage
         const response = await databases.listDocuments(
           DATABASE_ID,
           'plaidTransactions',
-          [Query.limit(5)]
+          [
+            Query.equal('userId', user.$id),
+            Query.limit(5)
+          ]
         );
 
         setTransactions(response.documents as any[]);
