@@ -181,8 +181,8 @@ export async function POST(request: NextRequest) {
               }
             },
             {
-              name: 'download_file',
-              description: 'Download a file from storage and save to /tmp for Claude Code to view',
+              name: 'view_file',
+              description: 'View a file/receipt from storage. Returns images directly for Claude to see (as base64 ImageContent), PDFs as embedded resources. Use this to view receipts and extract information.',
               inputSchema: {
                 type: 'object',
                 properties: {
@@ -501,7 +501,8 @@ export async function POST(request: NextRequest) {
               }
             });
 
-          case 'download_file':
+          case 'view_file':
+          case 'download_file': // Keep backward compatibility
             // Get file metadata from database
             const fileRecords = await databases.listDocuments(
               DATABASE_ID,
