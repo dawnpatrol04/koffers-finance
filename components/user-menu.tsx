@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logout } from "@/lib/appwrite";
+import { logout } from "@/lib/appwrite-client";
 import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 
