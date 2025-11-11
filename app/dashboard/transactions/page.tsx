@@ -132,6 +132,29 @@ function TransactionsContent() {
           queries
         );
 
+        // Get transaction IDs to query for files
+        const txnIds = response.documents.map((t: any) => t.$id);
+
+        // Query files collection to check which transactions have receipts
+        let filesMap = new Map<string, boolean>();
+        if (txnIds.length > 0) {
+          try {
+            const filesResponse = await databases.listDocuments(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              'files',
+              [Query.limit(1000)] // Get all files for this user
+            );
+            // Create map of transactionId -> has files
+            filesResponse.documents.forEach((file: any) => {
+              if (file.transactionId) {
+                filesMap.set(file.transactionId, true);
+              }
+            });
+          } catch (err) {
+            console.error('Error fetching files:', err);
+          }
+        }
+
         // Map API transactions to Transaction type
         const mappedTransactions: Transaction[] = response.documents.map((t: any) => {
             const data = JSON.parse(t.rawData);
@@ -159,11 +182,19 @@ function TransactionsContent() {
               category: displayCategory,
               channel: data.payment_channel || 'Other',
               status: data.pending ? 'pending' : 'completed',
-              hasReceipt: false,
-              hasCommentary: false,
-              isReviewed: false,
-              hasTags: false,
-              hasReminder: false,
+              hasReceipt: filesMap.has(t.$id),
+              hasCommentary: !!t.commentary,
+              isReviewed: !!t.reviewedBy,
+              hasTags: Array.isArray(t.tags) && t.tags.length > 0,
+              hasReminder: !!t.reminderMessage && !t.reminderCompleted,
+              commentary: t.commentary || undefined,
+              reviewedBy: t.reviewedBy || undefined,
+              reviewedAt: t.reviewedAt || undefined,
+              reminder: t.reminderMessage ? {
+                id: t.$id,
+                message: t.reminderMessage,
+                completed: t.reminderCompleted || false,
+              } : undefined,
             } as Transaction;
           });
 
@@ -205,6 +236,28 @@ function TransactionsContent() {
         queries
       );
 
+      // Get transaction IDs to query for files
+      const txnIds = response.documents.map((t: any) => t.$id);
+
+      // Query files collection
+      let filesMap = new Map<string, boolean>();
+      if (txnIds.length > 0) {
+        try {
+          const filesResponse = await databases.listDocuments(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            'files',
+            [Query.limit(1000)]
+          );
+          filesResponse.documents.forEach((file: any) => {
+            if (file.transactionId) {
+              filesMap.set(file.transactionId, true);
+            }
+          });
+        } catch (err) {
+          console.error('Error fetching files:', err);
+        }
+      }
+
       const mappedTransactions: Transaction[] = response.documents.map((t: any) => {
           const data = JSON.parse(t.rawData);
           const displayCategory = data.personal_finance_category?.primary || 'Uncategorized';
@@ -230,11 +283,19 @@ function TransactionsContent() {
             category: displayCategory,
             channel: data.payment_channel || 'Other',
             status: data.pending ? 'pending' : 'completed',
-            hasReceipt: false,
-            hasCommentary: false,
-            isReviewed: false,
-            hasTags: false,
-            hasReminder: false,
+            hasReceipt: filesMap.has(t.$id),
+            hasCommentary: !!t.commentary,
+            isReviewed: !!t.reviewedBy,
+            hasTags: Array.isArray(t.tags) && t.tags.length > 0,
+            hasReminder: !!t.reminderMessage && !t.reminderCompleted,
+            commentary: t.commentary || undefined,
+            reviewedBy: t.reviewedBy || undefined,
+            reviewedAt: t.reviewedAt || undefined,
+            reminder: t.reminderMessage ? {
+              id: t.$id,
+              message: t.reminderMessage,
+              completed: t.reminderCompleted || false,
+            } : undefined,
           } as Transaction;
         });
 
@@ -269,6 +330,28 @@ function TransactionsContent() {
           [Query.limit(100)]
         );
 
+        // Get transaction IDs to query for files
+        const txnIds = txnResponse.documents.map((t: any) => t.$id);
+
+        // Query files collection
+        let filesMap = new Map<string, boolean>();
+        if (txnIds.length > 0) {
+          try {
+            const filesResponse = await databases.listDocuments(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              'files',
+              [Query.limit(1000)]
+            );
+            filesResponse.documents.forEach((file: any) => {
+              if (file.transactionId) {
+                filesMap.set(file.transactionId, true);
+              }
+            });
+          } catch (err) {
+            console.error('Error fetching files:', err);
+          }
+        }
+
         const mappedTransactions: Transaction[] = txnResponse.documents.map((t: any) => {
             const data = JSON.parse(t.rawData);
             const displayCategory = data.personal_finance_category?.primary || 'Uncategorized';
@@ -294,11 +377,19 @@ function TransactionsContent() {
               category: displayCategory,
               channel: data.payment_channel || 'Other',
               status: data.pending ? 'pending' : 'completed',
-              hasReceipt: false,
-              hasCommentary: false,
-              isReviewed: false,
-              hasTags: false,
-              hasReminder: false,
+              hasReceipt: filesMap.has(t.$id),
+              hasCommentary: !!t.commentary,
+              isReviewed: !!t.reviewedBy,
+              hasTags: Array.isArray(t.tags) && t.tags.length > 0,
+              hasReminder: !!t.reminderMessage && !t.reminderCompleted,
+              commentary: t.commentary || undefined,
+              reviewedBy: t.reviewedBy || undefined,
+              reviewedAt: t.reviewedAt || undefined,
+              reminder: t.reminderMessage ? {
+                id: t.$id,
+                message: t.reminderMessage,
+                completed: t.reminderCompleted || false,
+              } : undefined,
             } as Transaction;
           });
 
