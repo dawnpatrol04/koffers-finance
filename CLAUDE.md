@@ -3,6 +3,13 @@
 **🚨 THIS IS NOT SANDBOX DATA! THIS IS PRODUCTION ONLY! NOTHING IS MOCK OR SANDBOX! 🚨**
 **🚨 WE ARE USING REAL PLAID PRODUCTION DATA - NOT SANDBOX TEST DATA! 🚨**
 
+**🚫 DO NOT USE `vercel logs` - IT HANGS/LOCKS UP EVERY TIME! 🚫**
+Instead:
+- Check logs directly in Vercel dashboard: https://vercel.com/dawnpatrol04s-projects/koffers-web/deployments
+- Or use direct API endpoint testing with curl
+- Or check database directly via Appwrite
+- Or use browser dev tools to inspect network requests
+
 **⚠️ PRIMARY KOFFERS ACCOUNT (MCP Connected):**
 - Email: dawnpatrol04@gmail.com
 - Password: qwe123qwe
