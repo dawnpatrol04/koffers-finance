@@ -570,7 +570,7 @@ export async function POST(request: NextRequest) {
           case 'search_transactions':
             const { amount, dateFrom, dateTo, merchant } = toolArgs;
 
-            // Query transactions collection
+            // Query plaid_transactions collection
             const searchQueries = [
               Query.equal('userId', userId),
               Query.greaterThanEqual('date', dateFrom),
@@ -580,28 +580,34 @@ export async function POST(request: NextRequest) {
 
             const txnResults = await databases.listDocuments(
               DATABASE_ID,
-              'transactions',
+              COLLECTIONS.PLAID_TRANSACTIONS,
               searchQueries
             );
 
             // Filter by amount (with tolerance) and optionally merchant
             const matches = txnResults.documents
               .filter((txn: any) => {
-                const amountMatch = Math.abs(txn.amount - amount) < 0.01;
+                const rawData = JSON.parse(txn.rawData);
+                const txnAmount = Math.abs(rawData.amount);
+                const amountMatch = Math.abs(txnAmount - amount) < 0.01;
+                const merchantName = rawData.merchant_name || rawData.name || '';
                 const merchantMatch = !merchant ||
-                  txn.merchant.toLowerCase().includes(merchant.toLowerCase());
+                  merchantName.toLowerCase().includes(merchant.toLowerCase());
                 return amountMatch && merchantMatch;
               })
-              .map((txn: any) => ({
-                id: txn.$id,
-                date: txn.date,
-                amount: txn.amount,
-                merchant: txn.merchant,
-                description: txn.description,
-                categoryId: txn.categoryId,
-                fileId: txn.fileId,
-                hasReceipt: !!txn.fileId
-              }));
+              .map((txn: any) => {
+                const rawData = JSON.parse(txn.rawData);
+                return {
+                  id: txn.$id,
+                  date: rawData.date || rawData.authorized_date,
+                  amount: Math.abs(rawData.amount),
+                  merchant: rawData.merchant_name || rawData.name,
+                  name: rawData.name,
+                  category: rawData.category ? rawData.category.join(', ') : 'Uncategorized',
+                  fileId: txn.fileId,
+                  hasReceipt: !!txn.fileId
+                };
+              });
 
             return NextResponse.json({
               jsonrpc: '2.0',
@@ -619,10 +625,10 @@ export async function POST(request: NextRequest) {
             });
 
           case 'link_file_to_transaction':
-            // Update transaction with fileId
+            // Update plaid transaction with fileId
             await databases.updateDocument(
               DATABASE_ID,
-              'transactions',
+              COLLECTIONS.PLAID_TRANSACTIONS,
               toolArgs.transactionId,
               { fileId: toolArgs.fileId }
             );
@@ -630,7 +636,7 @@ export async function POST(request: NextRequest) {
             // Update file ocrStatus to completed
             const filesToUpdate = await databases.listDocuments(
               DATABASE_ID,
-              'files',
+              COLLECTIONS.FILES,
               [Query.equal('fileId', toolArgs.fileId), Query.limit(1)]
             );
 
