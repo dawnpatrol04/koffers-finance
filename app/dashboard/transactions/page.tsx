@@ -51,6 +51,46 @@ function TransactionsContent() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
+  const [dateRangePreset, setDateRangePreset] = useState('last30days');
+  const [customDateFrom, setCustomDateFrom] = useState('');
+  const [customDateTo, setCustomDateTo] = useState('');
+
+  // Calculate date range based on preset
+  const getDateRange = () => {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    switch (dateRangePreset) {
+      case 'last7days': {
+        const from = new Date(today);
+        from.setDate(from.getDate() - 7);
+        return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
+      }
+      case 'last30days': {
+        const from = new Date(today);
+        from.setDate(from.getDate() - 30);
+        return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
+      }
+      case 'last60days': {
+        const from = new Date(today);
+        from.setDate(from.getDate() - 60);
+        return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
+      }
+      case 'last90days': {
+        const from = new Date(today);
+        from.setDate(from.getDate() - 90);
+        return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
+      }
+      case 'ytd': {
+        const from = new Date(now.getFullYear(), 0, 1);
+        return { from: from.toISOString().split('T')[0], to: today.toISOString().split('T')[0] };
+      }
+      case 'custom':
+        return { from: customDateFrom, to: customDateTo };
+      default:
+        return { from: '', to: '' };
+    }
+  };
 
   // Debounce search query (500ms delay)
   useEffect(() => {
@@ -75,6 +115,9 @@ function TransactionsContent() {
       try {
         setLoading(true);
 
+        // Get date range
+        const dateRange = getDateRange();
+
         // Build query params
         const params = new URLSearchParams({
           userId: user.$id,
@@ -84,6 +127,10 @@ function TransactionsContent() {
           sortOrder,
           search: debouncedSearch
         });
+
+        // Add date range if available
+        if (dateRange.from) params.set('dateFrom', dateRange.from);
+        if (dateRange.to) params.set('dateTo', dateRange.to);
 
         const response = await fetch(`/api/plaid/transactions?${params.toString()}`);
         const data = await response.json();
@@ -139,13 +186,16 @@ function TransactionsContent() {
     };
 
     fetchTransactions();
-  }, [user?.$id, userLoading, sortBy, sortOrder, debouncedSearch]);
+  }, [user?.$id, userLoading, sortBy, sortOrder, debouncedSearch, dateRangePreset, customDateFrom, customDateTo]);
 
   const loadMoreTransactions = async () => {
     if (!user?.$id || loadingMore || !hasMore) return;
 
     try {
       setLoadingMore(true);
+
+      // Get date range
+      const dateRange = getDateRange();
 
       // Build query params
       const params = new URLSearchParams({
@@ -156,6 +206,10 @@ function TransactionsContent() {
         sortOrder,
         search: debouncedSearch
       });
+
+      // Add date range if available
+      if (dateRange.from) params.set('dateFrom', dateRange.from);
+      if (dateRange.to) params.set('dateTo', dateRange.to);
 
       const response = await fetch(`/api/plaid/transactions?${params.toString()}`);
       const data = await response.json();
@@ -416,6 +470,44 @@ function TransactionsContent() {
               <ArrowUpDown className="h-4 w-4" />
             </Button>
           </div>
+        </div>
+
+        {/* Date Range Filter */}
+        <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+          <span className="text-sm font-medium">Date Range:</span>
+          <Select value={dateRangePreset} onValueChange={setDateRangePreset}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Select range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="last7days">Last 7 Days</SelectItem>
+              <SelectItem value="last30days">Last 30 Days</SelectItem>
+              <SelectItem value="last60days">Last 60 Days</SelectItem>
+              <SelectItem value="last90days">Last 90 Days</SelectItem>
+              <SelectItem value="ytd">Year to Date</SelectItem>
+              <SelectItem value="custom">Custom Range</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {dateRangePreset === 'custom' && (
+            <div className="flex gap-2 items-center">
+              <Input
+                type="date"
+                value={customDateFrom}
+                onChange={(e) => setCustomDateFrom(e.target.value)}
+                className="w-[150px]"
+                placeholder="From"
+              />
+              <span className="text-sm text-muted-foreground">to</span>
+              <Input
+                type="date"
+                value={customDateTo}
+                onChange={(e) => setCustomDateTo(e.target.value)}
+                className="w-[150px]"
+                placeholder="To"
+              />
+            </div>
+          )}
         </div>
 
         {/* Transaction List */}

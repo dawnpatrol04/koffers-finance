@@ -79,18 +79,17 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Apply date range filter (default to last 365 days / 1 year if not specified)
-    const now = new Date();
-    const defaultDateFrom = new Date(now);
-    defaultDateFrom.setDate(now.getDate() - 365);
+    // Apply date range filter (only if dateFrom/dateTo provided)
+    if (dateFrom || dateTo) {
+      const now = new Date();
+      const filterDateFrom = dateFrom ? new Date(dateFrom) : new Date('1970-01-01');
+      const filterDateTo = dateTo ? new Date(dateTo) : now;
 
-    const filterDateFrom = dateFrom ? new Date(dateFrom) : defaultDateFrom;
-    const filterDateTo = dateTo ? new Date(dateTo) : now;
-
-    transactions = transactions.filter(txn => {
-      const txnDate = new Date(txn.date);
-      return txnDate >= filterDateFrom && txnDate <= filterDateTo;
-    });
+      transactions = transactions.filter(txn => {
+        const txnDate = new Date(txn.date);
+        return txnDate >= filterDateFrom && txnDate <= filterDateTo;
+      });
+    }
 
     // Apply search filter
     if (search) {
