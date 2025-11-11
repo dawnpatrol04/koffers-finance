@@ -883,6 +883,7 @@ export async function POST(request: NextRequest) {
                 fileName: finalFileName,
                 mimeType: finalMimeType,
                 fileSize: finalBuffer.length,
+                fileType: 'receipt', // Default to receipt for uploaded files
                 ocrStatus: 'pending',
                 createdAt: new Date().toISOString(),
               }
