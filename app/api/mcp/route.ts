@@ -313,20 +313,24 @@ export async function POST(request: NextRequest) {
             },
             {
               name: 'upload_file',
-              description: 'Upload a file/receipt from local filesystem to Koffers storage. Accepts images (JPEG, PNG, HEIC) and PDFs. HEIC files are automatically converted to JPEG. Returns fileId for use with other tools.',
+              description: 'Upload a file/receipt to Koffers storage. Accepts images (JPEG, PNG, HEIC) and PDFs as base64-encoded data. HEIC files are automatically converted to JPEG. Returns fileId for use with other tools.',
               inputSchema: {
                 type: 'object',
                 properties: {
-                  filePath: {
+                  fileData: {
                     type: 'string',
-                    description: 'Absolute path to the file to upload (e.g., /Users/username/Downloads/receipt.jpg)'
+                    description: 'Base64-encoded file data'
                   },
                   fileName: {
                     type: 'string',
-                    description: 'Optional custom filename (defaults to original filename)'
+                    description: 'Required filename with extension (e.g., "receipt.jpg", "IMG_6118.HEIC")'
+                  },
+                  mimeType: {
+                    type: 'string',
+                    description: 'Optional MIME type (e.g., "image/jpeg", "image/heic"). Will be auto-detected if omitted.'
                   }
                 },
-                required: ['filePath']
+                required: ['fileData', 'fileName']
               }
             }
           ]
@@ -820,30 +824,25 @@ export async function POST(request: NextRequest) {
             });
 
           case 'upload_file':
-            const { filePath, fileName: customFileName } = toolArgs;
+            const { fileData, fileName, mimeType: providedMimeType } = toolArgs;
 
-            if (!filePath) {
-              throw new Error('filePath is required');
+            if (!fileData || !fileName) {
+              throw new Error('fileData and fileName are required');
             }
 
-            // Read file from filesystem
-            const fs = await import('fs/promises');
-            const path = await import('path');
-
-            let buffer = await fs.readFile(filePath);
-            const originalFileName = path.basename(filePath);
-            const fileStats = await fs.stat(filePath);
+            // Decode base64 file data
+            let buffer = Buffer.from(fileData, 'base64');
 
             // Check file size (20MB limit)
             const maxSize = 20 * 1024 * 1024;
-            if (fileStats.size > maxSize) {
+            if (buffer.length > maxSize) {
               throw new Error('File too large. Maximum size is 20MB');
             }
 
             // Detect file type
             const detectedType = await fileTypeFromBuffer(buffer);
-            let finalMimeType = detectedType?.mime || 'application/octet-stream';
-            let finalFileName = customFileName || originalFileName;
+            let finalMimeType = providedMimeType || detectedType?.mime || 'application/octet-stream';
+            let finalFileName = fileName;
             let finalBuffer = buffer;
 
             // Convert HEIC to JPEG
