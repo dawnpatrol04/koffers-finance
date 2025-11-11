@@ -8,6 +8,11 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get('userId');
     const limit = parseInt(searchParams.get('limit') || '100');
     const offset = parseInt(searchParams.get('offset') || '0');
+    const sortBy = searchParams.get('sortBy') || 'date';
+    const sortOrder = searchParams.get('sortOrder') || 'desc';
+    const search = searchParams.get('search') || '';
+    const dateFrom = searchParams.get('dateFrom') || '';
+    const dateTo = searchParams.get('dateTo') || '';
 
     if (!userId) {
       return NextResponse.json(
@@ -35,22 +40,19 @@ export async function GET(request: NextRequest) {
       ])
     );
 
-    // Fetch recent transactions from the Plaid transactions collection
-    // Note: Can't order by 'date' since it's inside rawData JSON
-    // Using $createdAt instead for chronological ordering
+    // Fetch ALL transactions for the user (we'll filter/sort in memory)
+    // Note: Appwrite can't query inside rawData JSON, so we need to do this client-side
     const transactionsResponse = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.PLAID_TRANSACTIONS,
       [
         Query.equal('userId', userId),
-        Query.orderDesc('$createdAt'),
-        Query.limit(limit),
-        Query.offset(offset)
+        Query.limit(5000) // Fetch all transactions (adjust if needed)
       ]
     );
 
-    // Format for frontend - parse rawData from each document
-    const transactions = transactionsResponse.documents.map(doc => {
+    // Format and parse all transactions
+    let transactions = transactionsResponse.documents.map(doc => {
       const txnData = JSON.parse(doc.rawData);
       const accountInfo = accountMap.get(doc.plaidAccountId);
 
@@ -70,7 +72,6 @@ export async function GET(request: NextRequest) {
         pending: txnData.pending || false,
         category: JSON.stringify(txnData.category || ['Uncategorized']),
         paymentChannel: txnData.payment_channel || 'other',
-        // Additional useful fields
         location: txnData.location || null,
         paymentMeta: txnData.payment_meta || null,
         transactionType: txnData.transaction_type || null,
@@ -78,11 +79,57 @@ export async function GET(request: NextRequest) {
       };
     });
 
+    // Apply date range filter (default to last 100 days if not specified)
+    const now = new Date();
+    const defaultDateFrom = new Date(now);
+    defaultDateFrom.setDate(now.getDate() - 100);
+
+    const filterDateFrom = dateFrom ? new Date(dateFrom) : defaultDateFrom;
+    const filterDateTo = dateTo ? new Date(dateTo) : now;
+
+    transactions = transactions.filter(txn => {
+      const txnDate = new Date(txn.date);
+      return txnDate >= filterDateFrom && txnDate <= filterDateTo;
+    });
+
+    // Apply search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      transactions = transactions.filter(txn =>
+        txn.merchantName.toLowerCase().includes(searchLower) ||
+        txn.name.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply sorting
+    transactions.sort((a, b) => {
+      let comparison = 0;
+
+      if (sortBy === 'date') {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        comparison = dateB - dateA; // Default newest first
+      } else if (sortBy === 'amount') {
+        comparison = Math.abs(b.amount) - Math.abs(a.amount); // Largest first by default
+      } else if (sortBy === 'merchant') {
+        comparison = a.merchantName.localeCompare(b.merchantName); // A-Z by default
+      }
+
+      // Reverse if ascending order requested
+      return sortOrder === 'asc' ? -comparison : comparison;
+    });
+
+    // Get total count after filtering
+    const totalFiltered = transactions.length;
+
+    // Apply pagination
+    const paginatedTransactions = transactions.slice(offset, offset + limit);
+
     return NextResponse.json({
       success: true,
-      transactions,
-      total: transactionsResponse.total,
-      hasMore: offset + limit < transactionsResponse.total
+      transactions: paginatedTransactions,
+      total: totalFiltered,
+      hasMore: offset + limit < totalFiltered
     });
 
   } catch (error: any) {

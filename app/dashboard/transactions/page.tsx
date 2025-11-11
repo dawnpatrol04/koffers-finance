@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState, Suspense, useCallback } from 'react';
 import { useUser } from '@/contexts/user-context';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { TransactionCard } from '@/components/transaction-card';
 import { TransactionSheet } from '@/components/sheets/transaction-sheet';
 import { useTransactionParams } from '@/hooks/use-transaction-params';
-import { Plus, Search, ArrowLeft, RefreshCw } from 'lucide-react';
+import { Plus, Search, ArrowLeft, RefreshCw, ArrowUpDown } from 'lucide-react';
 import type { Transaction } from '@/types/transaction';
 
 interface ApiTransaction {
@@ -44,12 +44,24 @@ function TransactionsContent() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState('all');
   const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(false);
   const [total, setTotal] = useState(0);
 
+  // Debounce search query (500ms delay)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Fetch transactions when filters change
   useEffect(() => {
     if (userLoading) return;
 
@@ -62,7 +74,18 @@ function TransactionsContent() {
     const fetchTransactions = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100&offset=0`);
+
+        // Build query params
+        const params = new URLSearchParams({
+          userId: user.$id,
+          limit: '100',
+          offset: '0',
+          sortBy,
+          sortOrder,
+          search: debouncedSearch
+        });
+
+        const response = await fetch(`/api/plaid/transactions?${params.toString()}`);
         const data = await response.json();
 
         if (data.success) {
@@ -116,16 +139,25 @@ function TransactionsContent() {
     };
 
     fetchTransactions();
-  }, [user?.$id, userLoading]);
+  }, [user?.$id, userLoading, sortBy, sortOrder, debouncedSearch]);
 
   const loadMoreTransactions = async () => {
     if (!user?.$id || loadingMore || !hasMore) return;
 
     try {
       setLoadingMore(true);
-      const response = await fetch(
-        `/api/plaid/transactions?userId=${user.$id}&limit=100&offset=${transactions.length}`
-      );
+
+      // Build query params
+      const params = new URLSearchParams({
+        userId: user.$id,
+        limit: '100',
+        offset: transactions.length.toString(),
+        sortBy,
+        sortOrder,
+        search: debouncedSearch
+      });
+
+      const response = await fetch(`/api/plaid/transactions?${params.toString()}`);
       const data = await response.json();
 
       if (data.success) {
@@ -238,40 +270,17 @@ function TransactionsContent() {
     }
   };
 
+  // Client-side filter for income/expenses/pending only
+  // Search and sorting are handled server-side
   const filteredTransactions = transactions.filter(transaction => {
-    let typeMatch = true;
-    if (filter === 'income') typeMatch = transaction.amount < 0;
-    else if (filter === 'expenses') typeMatch = transaction.amount > 0;
-    else if (filter === 'pending') typeMatch = transaction.status === 'pending';
-
-    let searchMatch = true;
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      searchMatch =
-        transaction.merchant.toLowerCase().includes(query) ||
-        (transaction.merchantSubtext && transaction.merchantSubtext.toLowerCase().includes(query));
-    }
-
-    return typeMatch && searchMatch;
+    if (filter === 'income') return transaction.amount < 0;
+    if (filter === 'expenses') return transaction.amount > 0;
+    if (filter === 'pending') return transaction.status === 'pending';
+    return true; // 'all'
   });
 
-  const sortedTransactions = [...filteredTransactions].sort((a, b) => {
-    if (sortBy === 'date') {
-      return new Date(b.date).getTime() - new Date(a.date).getTime();
-    }
-    if (sortBy === 'amount') {
-      return Math.abs(b.amount) - Math.abs(a.amount);
-    }
-    if (sortBy === 'merchant') {
-      return b.merchant.localeCompare(a.merchant);
-    }
-    if (sortBy === 'completion') {
-      const aComplete = a.hasReceipt && a.hasCommentary;
-      const bComplete = b.hasReceipt && b.hasCommentary;
-      return aComplete === bComplete ? 0 : aComplete ? -1 : 1;
-    }
-    return 0;
-  });
+  // Transactions are already sorted by the server
+  const sortedTransactions = filteredTransactions;
 
   if (loading) {
     return (
@@ -386,17 +395,27 @@ function TransactionsContent() {
             </Button>
           </div>
 
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Sort by" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="date">Sort by Date</SelectItem>
-              <SelectItem value="amount">Sort by Amount</SelectItem>
-              <SelectItem value="merchant">Sort by Merchant</SelectItem>
-              <SelectItem value="completion">Sort by Completion</SelectItem>
-            </SelectContent>
-          </Select>
+          <div className="flex gap-2">
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="Sort by" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date">Sort by Date</SelectItem>
+                <SelectItem value="amount">Sort by Amount</SelectItem>
+                <SelectItem value="merchant">Sort by Merchant</SelectItem>
+                <SelectItem value="completion">Sort by Completion</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              title={sortOrder === 'asc' ? 'Sort Ascending' : 'Sort Descending'}
+            >
+              <ArrowUpDown className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
 
         {/* Transaction List */}
