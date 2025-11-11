@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
 import { databases } from '@/lib/appwrite-client';
+import { Query } from 'appwrite';
 import { DATABASE_ID } from '@/lib/config';
 
 interface Account {
