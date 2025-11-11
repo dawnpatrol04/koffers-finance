@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { Models } from "appwrite";
-import { getCurrentUser } from "@/lib/appwrite";
+import { getCurrentUser } from "@/lib/appwrite-client";
 
 interface UserContextType {
   user: Models.User<Models.Preferences> | null;

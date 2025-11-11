@@ -1,6 +1,6 @@
 "use client";
 
-import { account, OAuthProvider } from "@/lib/appwrite";
+import { account, OAuthProvider } from "@/lib/appwrite-client";
 
 export function AppleSignIn() {
   const handleSignIn = async () => {

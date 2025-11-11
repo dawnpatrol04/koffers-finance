@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { account } from "@/lib/appwrite";
+import { account } from "@/lib/appwrite-client";
 import { useRouter } from "next/navigation";
 import { useUser } from "@/contexts/user-context";
 

@@ -1,7 +1,4 @@
-import { ConnectionStatus } from "@/components/connection-status";
-import { NotificationCenter } from "@/components/notification-center";
 import { OpenSearchButton } from "@/components/search/open-search-button";
-import { Trial } from "@/components/trial";
 import { UserMenu } from "@/components/user-menu";
 import { MobileMenu } from "./mobile-menu";
 
@@ -13,9 +10,6 @@ export function Header() {
       <OpenSearchButton />
 
       <div className="flex space-x-2 ml-auto">
-        <Trial />
-        <ConnectionStatus />
-        <NotificationCenter />
         <UserMenu />
       </div>
     </header>
