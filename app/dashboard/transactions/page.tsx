@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TransactionCard } from '@/components/transaction-card';
 import { TransactionSheet } from '@/components/sheets/transaction-sheet';
+import { TransactionCreateSheet } from '@/components/sheets/transaction-create-sheet';
 import { useTransactionParams } from '@/hooks/use-transaction-params';
 import { Plus, Search, ArrowLeft, RefreshCw, ArrowUpDown } from 'lucide-react';
 import type { Transaction } from '@/types/transaction';
@@ -609,7 +610,7 @@ function TransactionsContent() {
               <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
               {refreshing ? 'Refreshing...' : 'Refresh'}
             </Button>
-            <Button>
+            <Button onClick={() => setParams({ createTransaction: true })}>
               <Plus className="h-4 w-4 mr-2" />
               Add Transaction
             </Button>
@@ -759,6 +760,7 @@ function TransactionsContent() {
 
       {/* Transaction Detail Sheet */}
       <TransactionSheet />
+      <TransactionCreateSheet />
     </div>
   );
 }
