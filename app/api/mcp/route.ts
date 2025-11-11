@@ -615,7 +615,7 @@ export async function POST(request: NextRequest) {
             // Query plaid_transactions collection (can't filter by date since it's in rawData JSON)
             const searchQueries = [
               Query.equal('userId', userId),
-              Query.limit(500) // Fetch more since we filter in-memory
+              Query.limit(5000) // Fetch ALL transactions since we filter in-memory
             ];
 
             const txnResults = await databases.listDocuments(
