@@ -50,7 +50,10 @@ export default function FilesPage() {
           const txnResponse = await databases.listDocuments(
             DATABASE_ID,
             'plaidTransactions',
-            [Query.limit(1000)]
+            [
+              Query.equal('userId', user.$id),
+              Query.limit(1000)
+            ]
           )
           txnResponse.documents.forEach((txn: any) => {
             const data = JSON.parse(txn.rawData)

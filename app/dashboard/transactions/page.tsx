@@ -289,7 +289,10 @@ function TransactionsContent() {
           const filesResponse = await databases.listDocuments(
             DATABASE_ID,
             'files',
-            [Query.limit(1000)]
+            [
+              Query.equal('userId', user.$id),
+              Query.limit(1000)
+            ]
           );
           filesResponse.documents.forEach((file: any) => {
             if (file.transactionId) {
@@ -308,7 +311,10 @@ function TransactionsContent() {
           const itemsResponse = await databases.listDocuments(
             DATABASE_ID,
             'receiptItems',
-            [Query.limit(1000)]
+            [
+              Query.equal('userId', user.$id),
+              Query.limit(1000)
+            ]
           );
           itemsResponse.documents.forEach((item: any) => {
             if (item.transactionId) {
