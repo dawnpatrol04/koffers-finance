@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { plaidClient } from '@/lib/plaid';
 import { databases, DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
+import { TransactionsSyncRequest } from 'plaid';
 
+/**
+ * Fetch and sync transaction data from Plaid
+ * Based on official Plaid Node.js documentation
+ * https://plaid.com/docs/transactions/add-to-app
+ */
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await request.json();
@@ -13,6 +19,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    console.log(`🔵 Starting Plaid sync for user: ${userId}`);
 
     // Get all Plaid items for this user
     const itemsResponse = await databases.listDocuments(
@@ -28,6 +36,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    console.log(`📦 Found ${itemsResponse.documents.length} Plaid items`);
+
     const results = {
       accountsAdded: 0,
       transactionsAdded: 0,
@@ -35,113 +45,133 @@ export async function POST(request: NextRequest) {
       errors: [] as string[]
     };
 
-    // Fetch data for each item
+    // Process each Plaid item
     for (const item of itemsResponse.documents) {
       try {
         const accessToken = item.accessToken;
+        const itemId = item.itemId;
 
-        // Fetch accounts
-        const accountsResponse = await plaidClient.accountsGet({
-          access_token: accessToken,
-        });
+        console.log(`\n${'='.repeat(60)}`);
+        console.log(`Processing Item: ${itemId}`);
+        console.log(`Institution: ${item.institutionName || 'Unknown'}`);
+        console.log(`${'='.repeat(60)}`);
 
-        console.log(`📦 Fetched ${accountsResponse.data.accounts.length} accounts for item ${item.itemId}`);
+        // Fetch accounts first
+        try {
+          const accountsResponse = await plaidClient.accountsGet({
+            access_token: accessToken,
+          });
 
-        // Store accounts in the new 'accounts' collection
-        for (const account of accountsResponse.data.accounts) {
-          try {
-            // Check if account already exists
-            const existingAccount = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.ACCOUNTS,
-              [
-                Query.equal('plaidAccountId', account.account_id),
-                Query.limit(1)
-              ]
-            );
+          console.log(`✅ Fetched ${accountsResponse.data.accounts.length} accounts`);
 
-            if (existingAccount.documents.length === 0) {
-              await databases.createDocument(
+          // Store/update accounts
+          for (const account of accountsResponse.data.accounts) {
+            try {
+              const existingAccount = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTIONS.ACCOUNTS,
-                ID.unique(),
-                {
-                  userId,
-                  name: account.official_name || account.name,
-                  type: account.type === 'depository' ? (account.subtype === 'checking' ? 'checking' : 'savings') :
-                        account.type === 'credit' ? 'credit' : 'investment',
-                  institution: item.institutionName || '',
-                  lastFour: account.mask || '',
-                  currentBalance: account.balances.current || 0,
-                  plaidItemId: item.itemId,
-                  plaidAccountId: account.account_id
-                }
+                [
+                  Query.equal('plaidAccountId', account.account_id),
+                  Query.limit(1)
+                ]
               );
-              results.accountsAdded++;
+
+              if (existingAccount.documents.length === 0) {
+                await databases.createDocument(
+                  DATABASE_ID,
+                  COLLECTIONS.ACCOUNTS,
+                  ID.unique(),
+                  {
+                    userId,
+                    name: account.official_name || account.name,
+                    type: account.type === 'depository' ? (account.subtype === 'checking' ? 'checking' : 'savings') :
+                          account.type === 'credit' ? 'credit' : 'investment',
+                    institution: item.institutionName || '',
+                    lastFour: account.mask || '',
+                    currentBalance: account.balances.current || 0,
+                    plaidItemId: item.itemId,
+                    plaidAccountId: account.account_id
+                  }
+                );
+                results.accountsAdded++;
+                console.log(`  ✅ Added account: ${account.name}`);
+              }
+            } catch (error: any) {
+              console.error(`  ❌ Error storing account: ${error.message}`);
+              results.errors.push(`Account ${account.account_id}: ${error.message}`);
             }
-          } catch (error: any) {
-            console.error(`Error storing account ${account.account_id}:`, error.message);
-            results.errors.push(`Account ${account.account_id}: ${error.message}`);
           }
+        } catch (error: any) {
+          console.error(`❌ Error fetching accounts: ${error.message}`);
+          results.errors.push(`Accounts for ${itemId}: ${error.message}`);
         }
 
-        // Fetch transactions using /transactions/sync (24 months)
-        // Use cursor-based pagination for better reliability
-        let allTransactions: any[] = [];
+        // Fetch transactions using /transactions/sync
+        // Implementation based on official docs
+        console.log(`\n🔄 Syncing transactions for item ${itemId}...`);
+
         let cursor: string | undefined = undefined;
+        let added: any[] = [];
+        let modified: any[] = [];
         let hasMore = true;
         let pageCount = 0;
 
-        console.log(`🔄 Starting transactions/sync for item ${item.itemId} with 730 days history...`);
-
+        // Paginate through all transaction updates
         while (hasMore) {
           pageCount++;
 
-          const syncResponse = await plaidClient.transactionsSync({
+          const syncRequest: TransactionsSyncRequest = {
             access_token: accessToken,
             cursor: cursor,
             options: {
-              count: 500, // Max per request
               include_personal_finance_category: true,
             },
-          });
+          };
 
-          // Add new transactions
-          const addedTransactions = syncResponse.data.added || [];
-          const modifiedTransactions = syncResponse.data.modified || [];
+          try {
+            const response = await plaidClient.transactionsSync(syncRequest);
+            const data = response.data;
 
-          allTransactions = [...allTransactions, ...addedTransactions, ...modifiedTransactions];
+            // Accumulate results
+            added = added.concat(data.added || []);
+            modified = modified.concat(data.modified || []);
 
-          console.log(`📄 Page ${pageCount}: +${addedTransactions.length} added, +${modifiedTransactions.length} modified (total: ${allTransactions.length})`);
+            console.log(`  📄 Page ${pageCount}: +${data.added?.length || 0} added, +${data.modified?.length || 0} modified (total: ${added.length + modified.length})`);
 
-          // Update cursor and check if more data available
-          cursor = syncResponse.data.next_cursor;
-          hasMore = syncResponse.data.has_more;
+            hasMore = data.has_more;
+            cursor = data.next_cursor;
 
-          // Safety check to prevent infinite loops
-          if (pageCount > 100) {
-            console.warn(`⚠️ Reached maximum page limit (100) for item ${item.itemId}`);
+            // Safety limit
+            if (pageCount > 100) {
+              console.warn(`  ⚠️ Reached page limit (100)`);
+              break;
+            }
+          } catch (error: any) {
+            console.error(`  ❌ Error on page ${pageCount}:`, error.response?.data || error.message);
+            results.errors.push(`Transactions sync page ${pageCount}: ${error.response?.data?.error_message || error.message}`);
             break;
           }
         }
 
-        console.log(`💰 Fetched ${allTransactions.length} transactions for item ${item.itemId} in ${pageCount} pages`);
+        const allTransactions = [...added, ...modified];
+        console.log(`\n💰 Total transactions fetched: ${allTransactions.length}`);
 
-        // Store transactions in batches to improve performance
-        // Group transactions into batches and use Promise.all for parallel processing
-        const totalTransactions = allTransactions.length;
-        const BATCH_SIZE = 10; // Process 10 at a time
+        if (allTransactions.length === 0) {
+          console.log(`  ℹ️ No transactions to process`);
+          continue;
+        }
+
+        // Store transactions in batches
+        const BATCH_SIZE = 10;
         let processedCount = 0;
 
-        console.log(`💾 Starting to store ${totalTransactions} transactions in batches of ${BATCH_SIZE}...`);
+        console.log(`💾 Storing ${allTransactions.length} transactions in batches of ${BATCH_SIZE}...`);
 
         for (let i = 0; i < allTransactions.length; i += BATCH_SIZE) {
           const batch = allTransactions.slice(i, i + BATCH_SIZE);
 
-          // Process batch in parallel
           await Promise.all(batch.map(async (transaction) => {
             try {
-              // Check if transaction already exists
               const existingTransaction = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTIONS.PLAID_TRANSACTIONS,
@@ -157,9 +187,7 @@ export async function POST(request: NextRequest) {
                   DATABASE_ID,
                   COLLECTIONS.PLAID_TRANSACTIONS,
                   existingTransaction.documents[0].$id,
-                  {
-                    rawData: JSON.stringify(transaction)
-                  }
+                  { rawData: JSON.stringify(transaction) }
                 );
                 results.transactionsUpdated++;
               } else {
@@ -181,21 +209,31 @@ export async function POST(request: NextRequest) {
                 results.transactionsAdded++;
               }
             } catch (error: any) {
-              console.error(`Error storing transaction ${transaction.transaction_id}:`, error.message);
+              console.error(`  ❌ Error storing transaction: ${error.message}`);
               results.errors.push(`Transaction ${transaction.transaction_id}: ${error.message}`);
             }
           }));
 
           processedCount += batch.length;
-          const progress = Math.round((processedCount / totalTransactions) * 100);
-          console.log(`📊 Progress: ${processedCount}/${totalTransactions} (${progress}%) - Added: ${results.transactionsAdded}, Updated: ${results.transactionsUpdated}, Errors: ${results.errors.length}`);
+          const progress = Math.round((processedCount / allTransactions.length) * 100);
+          console.log(`  📊 Progress: ${processedCount}/${allTransactions.length} (${progress}%)`);
         }
 
+        console.log(`\n✅ Completed processing item ${itemId}`);
+
       } catch (error: any) {
-        console.error(`Error processing item ${item.itemId}:`, error);
-        results.errors.push(`Item ${item.itemId}: ${error.message}`);
+        console.error(`\n❌ Error processing item ${item.itemId}:`, error.response?.data || error.message);
+        results.errors.push(`Item ${item.itemId}: ${error.response?.data?.error_message || error.message}`);
       }
     }
+
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`FINAL RESULTS:`);
+    console.log(`  Accounts added: ${results.accountsAdded}`);
+    console.log(`  Transactions added: ${results.transactionsAdded}`);
+    console.log(`  Transactions updated: ${results.transactionsUpdated}`);
+    console.log(`  Errors: ${results.errors.length}`);
+    console.log(`${'='.repeat(60)}`);
 
     return NextResponse.json({
       success: true,
@@ -203,7 +241,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('Error fetching Plaid data:', error);
+    console.error('❌ Fatal error fetching Plaid data:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to fetch Plaid data' },
       { status: 500 }
