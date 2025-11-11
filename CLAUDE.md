@@ -88,7 +88,29 @@ When we recreate components, we lose the polish and quality. Components must be 
   - All widgets rendering with real data
   - Screenshots: dashboard-with-plaid-data-connected.png, transactions-page-full-list.png
 
-## CURRENT STATUS - AS OF OCT 28, 2025
+## CURRENT STATUS - AS OF NOV 10, 2025
+
+**🚨 CRITICAL FINDING: Transaction Import Issue**
+
+### What We Discovered
+- **Plaid API works perfectly**: Returns all 3,787 transactions spanning Nov 2023 - Nov 2025 (24 months) ✅
+- **Database has only 131 transactions**: The import process is failing/timing out ❌
+- **Root cause**: The `/api/plaid/fetch-data` endpoint tries to fetch AND store all 3,787 transactions in one request, causing timeout
+- **MCP refresh_transactions hangs**: It calls fetch-data which takes too long (>60 seconds)
+
+### Technical Details
+- Plaid `/transactions/sync` returns data in 8 pages (500 transactions each)
+- Total: 3,787 transactions from Nov 12, 2023 to Nov 10, 2025
+- Current approach: Fetch all pages, then loop through storing each one in Appwrite
+- Problem: Appwrite `createDocument` is slow when called 3,787 times sequentially
+- Solution needed: Background job or chunked import
+
+### Correct Plaid Credentials (from Vercel)
+```
+PLAID_CLIENT_ID="68b9e82f3cf4fb0023141767"
+PLAID_SECRET="e9014837be734871fcdb6c3ea51e7c"
+```
+Note: `.env.production` has wrong secret, Vercel env vars are correct.
 
 **🎉 MAJOR MILESTONE: Phase 4 & 5 Complete!**
 

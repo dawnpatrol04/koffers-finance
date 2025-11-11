@@ -127,61 +127,68 @@ export async function POST(request: NextRequest) {
 
         console.log(`💰 Fetched ${allTransactions.length} transactions for item ${item.itemId} in ${pageCount} pages`);
 
-        // Store transactions with duplicate detection and progress tracking
+        // Store transactions in batches to improve performance
+        // Group transactions into batches and use Promise.all for parallel processing
         const totalTransactions = allTransactions.length;
+        const BATCH_SIZE = 10; // Process 10 at a time
         let processedCount = 0;
 
-        for (const transaction of allTransactions) {
-          processedCount++;
+        console.log(`💾 Starting to store ${totalTransactions} transactions in batches of ${BATCH_SIZE}...`);
 
-          // Log progress every 50 transactions
-          if (processedCount % 50 === 0 || processedCount === totalTransactions) {
-            console.log(`📊 Progress: ${processedCount}/${totalTransactions} transactions processed (${Math.round(processedCount/totalTransactions*100)}%)`);
-          }
-          try {
-            // Check if transaction already exists in staging area
-            const existingTransaction = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.PLAID_TRANSACTIONS,
-              [
-                Query.equal('plaidTransactionId', transaction.transaction_id),
-                Query.limit(1)
-              ]
-            );
+        for (let i = 0; i < allTransactions.length; i += BATCH_SIZE) {
+          const batch = allTransactions.slice(i, i + BATCH_SIZE);
 
-            if (existingTransaction.documents.length > 0) {
-              // Transaction already exists, update rawData
-              await databases.updateDocument(
+          // Process batch in parallel
+          await Promise.all(batch.map(async (transaction) => {
+            try {
+              // Check if transaction already exists
+              const existingTransaction = await databases.listDocuments(
                 DATABASE_ID,
                 COLLECTIONS.PLAID_TRANSACTIONS,
-                existingTransaction.documents[0].$id,
-                {
-                  rawData: JSON.stringify(transaction)
-                }
+                [
+                  Query.equal('plaidTransactionId', transaction.transaction_id),
+                  Query.limit(1)
+                ]
               );
-              results.transactionsUpdated++;
-            } else {
-              // New transaction - store in staging area (plaidTransactions)
-              await databases.createDocument(
-                DATABASE_ID,
-                COLLECTIONS.PLAID_TRANSACTIONS,
-                ID.unique(),
-                {
-                  userId,
-                  plaidItemId: item.$id, // Link to plaidItems record
-                  plaidAccountId: transaction.account_id,
-                  plaidTransactionId: transaction.transaction_id,
-                  transactionId: null, // Will be set after processing
-                  rawData: JSON.stringify(transaction),
-                  processed: false
-                }
-              );
-              results.transactionsAdded++;
+
+              if (existingTransaction.documents.length > 0) {
+                // Update existing
+                await databases.updateDocument(
+                  DATABASE_ID,
+                  COLLECTIONS.PLAID_TRANSACTIONS,
+                  existingTransaction.documents[0].$id,
+                  {
+                    rawData: JSON.stringify(transaction)
+                  }
+                );
+                results.transactionsUpdated++;
+              } else {
+                // Create new
+                await databases.createDocument(
+                  DATABASE_ID,
+                  COLLECTIONS.PLAID_TRANSACTIONS,
+                  ID.unique(),
+                  {
+                    userId,
+                    plaidItemId: item.$id,
+                    plaidAccountId: transaction.account_id,
+                    plaidTransactionId: transaction.transaction_id,
+                    transactionId: null,
+                    rawData: JSON.stringify(transaction),
+                    processed: false
+                  }
+                );
+                results.transactionsAdded++;
+              }
+            } catch (error: any) {
+              console.error(`Error storing transaction ${transaction.transaction_id}:`, error.message);
+              results.errors.push(`Transaction ${transaction.transaction_id}: ${error.message}`);
             }
-          } catch (error: any) {
-            console.error(`Error storing transaction ${transaction.transaction_id}:`, error.message);
-            results.errors.push(`Transaction ${transaction.transaction_id}: ${error.message}`);
-          }
+          }));
+
+          processedCount += batch.length;
+          const progress = Math.round((processedCount / totalTransactions) * 100);
+          console.log(`📊 Progress: ${processedCount}/${totalTransactions} (${progress}%) - Added: ${results.transactionsAdded}, Updated: ${results.transactionsUpdated}, Errors: ${results.errors.length}`);
         }
 
       } catch (error: any) {
