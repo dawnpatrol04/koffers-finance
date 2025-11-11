@@ -698,7 +698,7 @@ export async function POST(request: NextRequest) {
             });
 
           case 'refresh_transactions':
-            // Call the fetch-data API endpoint internally
+            // Call the fetch-data API endpoint in background mode
             const fetchUrl = new URL('/api/plaid/fetch-data', request.url);
 
             const fetchResponse = await fetch(fetchUrl.toString(), {
@@ -706,7 +706,10 @@ export async function POST(request: NextRequest) {
               headers: {
                 'Content-Type': 'application/json'
               },
-              body: JSON.stringify({ userId })
+              body: JSON.stringify({
+                userId,
+                background: true // Enable background mode
+              })
             });
 
             if (!fetchResponse.ok) {
@@ -716,6 +719,7 @@ export async function POST(request: NextRequest) {
 
             const refreshData = await fetchResponse.json();
 
+            // Return immediately with jobId
             return NextResponse.json({
               jsonrpc: '2.0',
               id: body.id,
@@ -724,8 +728,10 @@ export async function POST(request: NextRequest) {
                   type: 'text',
                   text: JSON.stringify({
                     success: true,
-                    message: 'Transactions refreshed successfully',
-                    ...refreshData
+                    message: 'Transaction sync started in background',
+                    jobId: refreshData.jobId,
+                    statusUrl: `/api/plaid/sync-status?userId=${userId}&jobId=${refreshData.jobId}`,
+                    instructions: 'Check sync status by visiting the status URL or wait a moment and check your transaction count'
                   }, null, 2)
                 }]
               }

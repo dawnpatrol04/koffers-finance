@@ -8,10 +8,13 @@ import { TransactionsSyncRequest } from 'plaid';
  * Fetch and sync transaction data from Plaid
  * Based on official Plaid Node.js documentation
  * https://plaid.com/docs/transactions/add-to-app
+ *
+ * Supports background mode: Set background=true to return immediately with jobId
  */
 export async function POST(request: NextRequest) {
   try {
-    const { userId } = await request.json();
+    const body = await request.json().catch(() => ({}));
+    const { userId, background = false } = body;
 
     if (!userId) {
       return NextResponse.json(
@@ -20,7 +23,75 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`🔵 Starting Plaid sync for user: ${userId}`);
+    // Create sync job record
+    const syncJob = await databases.createDocument(
+      DATABASE_ID,
+      COLLECTIONS.SYNC_JOBS,
+      ID.unique(),
+      {
+        userId,
+        status: 'running',
+        progress: 0,
+        totalItems: 0,
+        processedItems: 0,
+        startedAt: new Date().toISOString(),
+        completedAt: null,
+        error: null,
+        results: null
+      }
+    );
+
+    const jobId = syncJob.$id;
+
+    console.log(`🔵 Starting Plaid sync for user: ${userId} (Job ID: ${jobId})`);
+
+    // If background mode, return immediately with jobId
+    if (background) {
+      // Trigger the sync in background (don't await)
+      performSync(userId, jobId).catch(error => {
+        console.error(`Background sync failed for job ${jobId}:`, error);
+      });
+
+      return NextResponse.json({
+        success: true,
+        jobId,
+        message: 'Sync started in background. Use /api/plaid/sync-status to check progress.'
+      });
+    }
+
+    // Otherwise, perform sync synchronously
+    const result = await performSync(userId, jobId);
+    return NextResponse.json(result);
+
+  } catch (error: any) {
+    console.error('❌ Fatal error fetching Plaid data:', error);
+    return NextResponse.json(
+      { error: error.message || 'Failed to fetch Plaid data' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * Perform the actual sync operation
+ * Updates sync job status as it progresses
+ */
+async function performSync(userId: string, jobId: string) {
+  const updateJob = async (updates: any) => {
+    try {
+      await databases.updateDocument(
+        DATABASE_ID,
+        COLLECTIONS.SYNC_JOBS,
+        jobId,
+        updates
+      );
+    } catch (error) {
+      console.error(`Failed to update job ${jobId}:`, error);
+    }
+  };
+
+  try {
+    console.log(`🔵 Performing sync for user: ${userId} (Job: ${jobId})`);
 
     // Get all Plaid items for this user
     const itemsResponse = await databases.listDocuments(
@@ -30,13 +101,19 @@ export async function POST(request: NextRequest) {
     );
 
     if (itemsResponse.documents.length === 0) {
-      return NextResponse.json(
-        { error: 'No Plaid items found for user' },
-        { status: 404 }
-      );
+      await updateJob({
+        status: 'failed',
+        error: 'No Plaid items found for user',
+        completedAt: new Date().toISOString()
+      });
+      return {
+        success: false,
+        error: 'No Plaid items found for user'
+      };
     }
 
     console.log(`📦 Found ${itemsResponse.documents.length} Plaid items`);
+    await updateJob({ totalItems: itemsResponse.documents.length });
 
     const results = {
       accountsAdded: 0,
@@ -170,6 +247,13 @@ export async function POST(request: NextRequest) {
         for (let i = 0; i < allTransactions.length; i += BATCH_SIZE) {
           const batch = allTransactions.slice(i, i + BATCH_SIZE);
 
+          // Update progress before processing batch
+          const progressPercent = Math.round((processedCount / allTransactions.length) * 100);
+          await updateJob({
+            progress: progressPercent,
+            processedItems: processedCount
+          });
+
           await Promise.all(batch.map(async (transaction) => {
             try {
               const existingTransaction = await databases.listDocuments(
@@ -235,16 +319,34 @@ export async function POST(request: NextRequest) {
     console.log(`  Errors: ${results.errors.length}`);
     console.log(`${'='.repeat(60)}`);
 
-    return NextResponse.json({
-      success: true,
-      ...results
+    // Mark job as completed
+    await updateJob({
+      status: 'completed',
+      progress: 100,
+      completedAt: new Date().toISOString(),
+      results: JSON.stringify(results)
     });
 
+    return {
+      success: true,
+      jobId,
+      ...results
+    };
+
   } catch (error: any) {
-    console.error('❌ Fatal error fetching Plaid data:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to fetch Plaid data' },
-      { status: 500 }
-    );
+    console.error(`❌ Fatal error in sync job ${jobId}:`, error);
+
+    // Mark job as failed
+    await updateJob({
+      status: 'failed',
+      error: error.message || 'Failed to fetch Plaid data',
+      completedAt: new Date().toISOString()
+    });
+
+    return {
+      success: false,
+      jobId,
+      error: error.message || 'Failed to fetch Plaid data'
+    };
   }
 }

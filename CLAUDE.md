@@ -88,6 +88,32 @@ When we recreate components, we lose the polish and quality. Components must be 
   - All widgets rendering with real data
   - Screenshots: dashboard-with-plaid-data-connected.png, transactions-page-full-list.png
 
+## ⚠️ REQUIRED: Create syncJobs Collection in Appwrite
+
+**Before deploying, create this collection in Appwrite:**
+
+Collection name: `syncJobs`
+Attributes:
+- `userId` (string, required)
+- `status` (string, required) - enum: running, completed, failed
+- `progress` (integer, required) - 0-100
+- `totalItems` (integer, required)
+- `processedItems` (integer, required)
+- `startedAt` (datetime, required)
+- `completedAt` (datetime, optional)
+- `error` (string, optional, size: 1000)
+- `results` (string, optional, size: 5000) - JSON string
+
+Indexes:
+- userId (ASC)
+- status (ASC)
+- $createdAt (DESC)
+
+Permissions:
+- Read: users
+- Create: users
+- Update: any (for server-side updates)
+
 ## CURRENT STATUS - AS OF NOV 10, 2025
 
 **🚨 CRITICAL FINDING: Transaction Import Issue**

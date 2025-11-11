@@ -57,6 +57,7 @@ export const COLLECTIONS = {
 
   // MCP & API
   API_KEYS: 'apiKeys',
+  SYNC_JOBS: 'syncJobs',
 } as const;
 
 // Storage bucket IDs
