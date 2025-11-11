@@ -263,12 +263,12 @@ function TransactionsContent() {
       return Math.abs(b.amount) - Math.abs(a.amount);
     }
     if (sortBy === 'merchant') {
-      return a.merchant.localeCompare(b.merchant);
+      return b.merchant.localeCompare(a.merchant);
     }
     if (sortBy === 'completion') {
       const aComplete = a.hasReceipt && a.hasCommentary;
       const bComplete = b.hasReceipt && b.hasCommentary;
-      return aComplete === bComplete ? 0 : aComplete ? 1 : -1;
+      return aComplete === bComplete ? 0 : aComplete ? -1 : 1;
     }
     return 0;
   });
