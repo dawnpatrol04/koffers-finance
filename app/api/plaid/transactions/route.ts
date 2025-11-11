@@ -79,10 +79,10 @@ export async function GET(request: NextRequest) {
       };
     });
 
-    // Apply date range filter (default to last 100 days if not specified)
+    // Apply date range filter (default to last 365 days / 1 year if not specified)
     const now = new Date();
     const defaultDateFrom = new Date(now);
-    defaultDateFrom.setDate(now.getDate() - 100);
+    defaultDateFrom.setDate(now.getDate() - 365);
 
     const filterDateFrom = dateFrom ? new Date(dateFrom) : defaultDateFrom;
     const filterDateTo = dateTo ? new Date(dateTo) : now;
