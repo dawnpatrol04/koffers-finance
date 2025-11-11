@@ -117,13 +117,14 @@ Note: `.env.production` has wrong secret, Vercel env vars are correct.
 2. **Batched transaction import** - Now processes 10 transactions at a time with Promise.all instead of sequential ✅
 3. **Verified Plaid API works** - Tested manually, returns all 3,787 transactions correctly ✅
 
-### Current Blocker
-**Need to manually reconnect Chase bank account in UI:**
-- plaidItems collection is empty (got deleted when we clicked Disconnect)
-- accounts collection still has 3 accounts but they're orphaned (no plaidItem link)
-- Can't call `/api/plaid/fetch-data` because no plaidItems exist
-- Solution: Go to https://koffers.ai/dashboard/settings/accounts and click "Connect Bank Account"
-- Once reconnected, call MCP `refresh_transactions` tool to import all 3,787 transactions
+### Current Status
+**Chase account reconnected but getting 400 errors:**
+- Reconnected Chase via UI - created new plaidItems and duplicate accounts
+- MCP `refresh_transactions` returns errors for both items: `Request failed with status code 400`
+- Tested old access token with Python + raw Plaid API → ✅ WORKS (returns 3,787 transactions)
+- Tested same token through Next.js `/api/plaid/fetch-data` → ❌ 400 error
+- Issue appears to be in how the Plaid Node SDK is configured or called
+- Current transaction count: 131 (still the original batch from earlier)
 
 **🎉 MAJOR MILESTONE: Phase 4 & 5 Complete!**
 
