@@ -16,6 +16,11 @@ import type { Transaction } from '@/types/transaction';
 interface ApiTransaction {
   $id: string;
   transactionId: string;
+  accountId: string;
+  accountName: string;
+  accountInstitution: string;
+  accountType: string;
+  accountLastFour: string;
   date: string;
   name: string;
   merchantName: string;
@@ -24,6 +29,10 @@ interface ApiTransaction {
   pending: boolean;
   category: string;
   paymentChannel: string;
+  location: any;
+  paymentMeta: any;
+  transactionType: string;
+  transactionCode: string;
 }
 
 function TransactionsContent() {
@@ -37,6 +46,9 @@ function TransactionsContent() {
   const [sortBy, setSortBy] = useState('date');
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
 
   useEffect(() => {
     if (userLoading) return;
@@ -50,7 +62,7 @@ function TransactionsContent() {
     const fetchTransactions = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100`);
+        const response = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100&offset=0`);
         const data = await response.json();
 
         if (data.success) {
@@ -76,7 +88,7 @@ function TransactionsContent() {
               id: t.$id,
               date: formatDate(t.date),
               merchant: t.merchantName,
-              merchantSubtext: t.name,
+              merchantSubtext: `${t.name} • ${t.accountName} (${t.accountLastFour})`,
               amount: t.amount,
               category: displayCategory,
               channel: t.paymentChannel || 'Other',
@@ -90,6 +102,8 @@ function TransactionsContent() {
           });
 
           setTransactions(mappedTransactions);
+          setHasMore(data.hasMore);
+          setTotal(data.total);
         } else {
           setError(data.error || 'Failed to fetch transactions');
         }
@@ -103,6 +117,60 @@ function TransactionsContent() {
 
     fetchTransactions();
   }, [user?.$id, userLoading]);
+
+  const loadMoreTransactions = async () => {
+    if (!user?.$id || loadingMore || !hasMore) return;
+
+    try {
+      setLoadingMore(true);
+      const response = await fetch(
+        `/api/plaid/transactions?userId=${user.$id}&limit=100&offset=${transactions.length}`
+      );
+      const data = await response.json();
+
+      if (data.success) {
+        const mappedTransactions: Transaction[] = data.transactions.map((t: ApiTransaction) => {
+          const categories = t.category ? JSON.parse(t.category) : [];
+          const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+
+          const formatDate = (dateString: string) => {
+            try {
+              const date = new Date(dateString);
+              const month = String(date.getMonth() + 1).padStart(2, '0');
+              const day = String(date.getDate()).padStart(2, '0');
+              const year = date.getFullYear();
+              return `${month}/${day}/${year}`;
+            } catch {
+              return dateString;
+            }
+          };
+
+          return {
+            id: t.$id,
+            date: formatDate(t.date),
+            merchant: t.merchantName,
+            merchantSubtext: `${t.name} • ${t.accountName} (${t.accountLastFour})`,
+            amount: t.amount,
+            category: displayCategory,
+            channel: t.paymentChannel || 'Other',
+            status: t.pending ? 'pending' : 'completed',
+            hasReceipt: false,
+            hasCommentary: false,
+            isReviewed: false,
+            hasTags: false,
+            hasReminder: false,
+          } as Transaction;
+        });
+
+        setTransactions(prev => [...prev, ...mappedTransactions]);
+        setHasMore(data.hasMore);
+      }
+    } catch (err: any) {
+      console.error('Error loading more transactions:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleRefresh = async () => {
     if (!user?.$id) return;
@@ -270,7 +338,9 @@ function TransactionsContent() {
         <div className="flex items-center justify-between">
           <h1 className="text-4xl font-bold">Transactions</h1>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">{sortedTransactions.length} transactions</span>
+            <span className="text-sm text-muted-foreground">
+              {sortedTransactions.length} of {total} transactions
+            </span>
             <Button
               variant="outline"
               onClick={handleRefresh}
@@ -350,6 +420,33 @@ function TransactionsContent() {
             </div>
           )}
         </div>
+
+        {/* Load More Button */}
+        {hasMore && sortedTransactions.length > 0 && (
+          <div className="flex justify-center pt-6">
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={loadMoreTransactions}
+              disabled={loadingMore}
+              className="min-w-[200px]"
+            >
+              {loadingMore ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  Load More
+                  <span className="ml-2 text-muted-foreground">
+                    ({total - transactions.length} remaining)
+                  </span>
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Transaction Detail Sheet */}
