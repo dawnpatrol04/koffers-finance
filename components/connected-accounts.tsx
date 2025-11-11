@@ -10,6 +10,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { PlaidLink } from "@/components/plaid/plaid-link";
 import { useUser } from "@/contexts/user-context";
 
@@ -25,6 +34,8 @@ interface PlaidAccount {
   currentBalance: number;
   availableBalance: number | null;
   plaidItemDocId: string | null; // Appwrite document ID of the Plaid Item
+  institutionName: string | null; // Institution name from Plaid Item
+  connectedAt: string | null; // Connection date from Plaid Item
 }
 
 interface PlaidItem {
@@ -40,6 +51,9 @@ export function ConnectedAccounts() {
   const [items, setItems] = useState<Map<string, PlaidItem>>(new Map());
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteTransactions, setDeleteTransactions] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; name: string } | null>(null);
 
   useEffect(() => {
     if (!user?.$id) return;
@@ -77,23 +91,28 @@ export function ConnectedAccounts() {
     fetchAccounts();
   }, [user?.$id]);
 
-  const handleDisconnect = async (plaidItemDocId: string) => {
-    if (!user?.$id) return;
+  const openDisconnectDialog = (plaidItemDocId: string, institutionName: string) => {
+    setItemToDelete({ id: plaidItemDocId, name: institutionName });
+    setDeleteTransactions(false); // Reset checkbox
+    setDialogOpen(true);
+  };
 
-    if (!confirm('Are you sure you want to disconnect this bank account? This will remove all associated transactions.')) {
-      return;
-    }
+  const confirmDisconnect = async () => {
+    if (!user?.$id || !itemToDelete) return;
 
     try {
-      setDisconnecting(plaidItemDocId);
+      setDisconnecting(itemToDelete.id);
+      setDialogOpen(false);
+
       const response = await fetch('/api/plaid/remove-item', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          itemId: plaidItemDocId, // This is the Appwrite document $id
+          itemId: itemToDelete.id, // This is the Appwrite document $id
           userId: user.$id,
+          deleteTransactions,
         }),
       });
 
@@ -101,12 +120,12 @@ export function ConnectedAccounts() {
 
       if (data.success) {
         // Remove accounts from state
-        setAccounts((prev) => prev.filter((acc) => acc.plaidItemDocId !== plaidItemDocId));
+        setAccounts((prev) => prev.filter((acc) => acc.plaidItemDocId !== itemToDelete.id));
         setItems((prev) => {
           const newItems = new Map(prev);
           // Remove by finding the key that matches
           for (const [key, value] of newItems.entries()) {
-            if (value.$id === plaidItemDocId) {
+            if (value.$id === itemToDelete.id) {
               newItems.delete(key);
               break;
             }
@@ -121,6 +140,7 @@ export function ConnectedAccounts() {
       alert(`Error disconnecting account: ${err.message}`);
     } finally {
       setDisconnecting(null);
+      setItemToDelete(null);
     }
   };
 
@@ -172,21 +192,37 @@ export function ConnectedAccounts() {
           </div>
         ) : (
           <div className="space-y-6">
-            {Array.from(accountsByInstitution.entries()).map(([itemId, itemAccounts]) => (
-              <div key={itemId} className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-medium">
-                    {itemAccounts[0]?.officialName || itemAccounts[0]?.name || 'Bank Connection'}
-                  </h4>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDisconnect(itemAccounts[0]?.plaidItemDocId || '')}
-                    disabled={disconnecting === itemAccounts[0]?.plaidItemDocId}
-                  >
-                    {disconnecting === itemAccounts[0]?.plaidItemDocId ? 'Disconnecting...' : 'Disconnect'}
-                  </Button>
-                </div>
+            {Array.from(accountsByInstitution.entries()).map(([itemId, itemAccounts]) => {
+              const firstAccount = itemAccounts[0];
+              const institutionName = firstAccount?.institutionName || 'Bank Connection';
+              const connectedDate = firstAccount?.connectedAt
+                ? new Date(firstAccount.connectedAt).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric'
+                  })
+                : '';
+
+              return (
+                <div key={itemId} className="border border-border rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <h4 className="font-medium">{institutionName}</h4>
+                      {connectedDate && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Connected on {connectedDate}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openDisconnectDialog(firstAccount?.plaidItemDocId || '', institutionName)}
+                      disabled={disconnecting === firstAccount?.plaidItemDocId}
+                    >
+                      {disconnecting === firstAccount?.plaidItemDocId ? 'Disconnecting...' : 'Disconnect'}
+                    </Button>
+                  </div>
 
                 <div className="space-y-2">
                   {itemAccounts.map((account) => (
@@ -208,7 +244,8 @@ export function ConnectedAccounts() {
                   ))}
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </CardContent>
@@ -216,6 +253,42 @@ export function ConnectedAccounts() {
       <CardFooter className="flex justify-end">
         <PlaidLink />
       </CardFooter>
+
+      {/* Disconnect Confirmation Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Disconnect Bank Account</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to disconnect <strong>{itemToDelete?.name}</strong>?
+              This will remove the connection and all associated accounts.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="flex items-center space-x-2 py-4">
+            <Checkbox
+              id="delete-transactions"
+              checked={deleteTransactions}
+              onCheckedChange={(checked) => setDeleteTransactions(checked as boolean)}
+            />
+            <label
+              htmlFor="delete-transactions"
+              className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+            >
+              Also delete all transactions from this account
+            </label>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDisconnect}>
+              Disconnect
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

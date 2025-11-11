@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
 
     // For each account, we need to get the Plaid Item's Appwrite document ID
     // The account has plaidItemId which is the Plaid item ID string (e.g., "item-123")
-    // We need to look up the plaidItems collection to get the document $id
+    // We need to look up the plaidItems collection to get the document $id, institution name, and connection date
     const accountsWithItemDocId = await Promise.all(
       accountsResponse.documents.map(async (account) => {
         // Get the Plaid Item document
@@ -36,9 +36,13 @@ export async function GET(request: NextRequest) {
           ]
         );
 
+        const plaidItem = itemsResponse.documents[0];
+
         return {
           ...account,
-          plaidItemDocId: itemsResponse.documents[0]?.$id || null
+          plaidItemDocId: plaidItem?.$id || null,
+          institutionName: plaidItem?.institutionName || null,
+          connectedAt: plaidItem?.$createdAt || null
         };
       })
     );

@@ -6,7 +6,7 @@ import { Query } from 'node-appwrite';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { itemId, userId } = body;
+    const { itemId, userId, deleteTransactions = false } = body;
 
     if (!itemId || !userId) {
       return NextResponse.json(
@@ -56,23 +56,25 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Delete all associated transactions from our database
+    // Delete all associated transactions from our database (only if user requested it)
     // Note: transactions.plaidItemId stores plaidItem.$id (the Appwrite doc ID)
-    const transactions = await databases.listDocuments(
-      DATABASE_ID,
-      COLLECTIONS.PLAID_TRANSACTIONS,
-      [
-        Query.equal('plaidItemId', plaidItem.$id),
-        Query.limit(1000) // May need pagination for large datasets
-      ]
-    );
-
-    for (const transaction of transactions.documents) {
-      await databases.deleteDocument(
+    if (deleteTransactions) {
+      const transactions = await databases.listDocuments(
         DATABASE_ID,
         COLLECTIONS.PLAID_TRANSACTIONS,
-        transaction.$id
+        [
+          Query.equal('plaidItemId', plaidItem.$id),
+          Query.limit(5000) // May need pagination for large datasets
+        ]
       );
+
+      for (const transaction of transactions.documents) {
+        await databases.deleteDocument(
+          DATABASE_ID,
+          COLLECTIONS.PLAID_TRANSACTIONS,
+          transaction.$id
+        );
+      }
     }
 
     // Delete the Plaid Item from our database
