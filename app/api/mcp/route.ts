@@ -54,6 +54,25 @@ async function validateApiKey(apiKey: string): Promise<string | null> {
   }
 }
 
+// Helper function to create error responses with isError flag
+// This ensures LLM sees errors in context and can recover
+function createErrorResponse(id: any, toolName: string, error: any, suggestion?: string) {
+  const errorMessage = error?.message || error?.toString() || 'Unknown error occurred';
+  const suggestionText = suggestion || 'Please check your parameters and try again. If this persists, the server may be experiencing issues.';
+
+  return NextResponse.json({
+    jsonrpc: '2.0',
+    id,
+    result: {
+      isError: true,
+      content: [{
+        type: 'text',
+        text: `❌ Error executing '${toolName}': ${errorMessage}\n\n💡 Suggestion: ${suggestionText}`
+      }]
+    }
+  });
+}
+
 // MCP Server handler
 export async function POST(request: NextRequest) {
   try {
@@ -343,570 +362,716 @@ export async function POST(request: NextRequest) {
 
         switch (toolName) {
           case 'get_accounts':
-            // Query the accounts collection (not PLAID_ACCOUNTS)
-            const accountsResponse = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.ACCOUNTS,
-              [Query.equal('userId', userId)]
-            );
+            try {
+              // Query the accounts collection (not PLAID_ACCOUNTS)
+              const accountsResponse = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTIONS.ACCOUNTS,
+                [Query.equal('userId', userId)]
+              );
 
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    accounts: accountsResponse.documents.map((acc: any) => ({
-                      id: acc.$id,
-                      plaidAccountId: acc.plaidAccountId,
-                      name: acc.name,
-                      type: acc.type,
-                      institution: acc.institution,
-                      lastFour: acc.lastFour,
-                      balance: acc.currentBalance,
-                      currency: 'USD'
-                    })),
-                    total: accountsResponse.total
-                  }, null, 2)
-                }]
-              }
-            });
-
-          case 'get_transactions':
-            // Query plaidTransactions collection - filter by userId and accountId if provided
-            const txnQueries = [Query.equal('userId', userId)];
-
-            if (toolArgs.accountId) {
-              txnQueries.push(Query.equal('plaidAccountId', toolArgs.accountId));
-            }
-
-            // Get more than requested since we'll filter in memory
-            txnQueries.push(Query.limit(Math.min(toolArgs.limit || 50, 500)));
-            txnQueries.push(Query.orderDesc('$createdAt'));
-
-            const transactionsResponse = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.PLAID_TRANSACTIONS,
-              txnQueries
-            );
-
-            // Parse rawData and filter/format transactions
-            let transactions = transactionsResponse.documents
-              .map((doc: any) => {
-                try {
-                  const txn = JSON.parse(doc.rawData);
-                  return {
-                    id: doc.$id,
-                    plaidTransactionId: doc.plaidTransactionId,
-                    accountId: doc.plaidAccountId,
-                    date: txn.date || txn.authorized_date,
-                    name: txn.name || txn.merchant_name,
-                    amount: txn.amount,
-                    category: txn.category ? txn.category.join(', ') : 'Uncategorized',
-                    merchantName: txn.merchant_name || txn.name,
-                    pending: txn.pending || false,
-                    paymentChannel: txn.payment_channel
-                  };
-                } catch (e) {
-                  console.error('Error parsing transaction rawData:', e);
-                  return null;
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      accounts: accountsResponse.documents.map((acc: any) => ({
+                        id: acc.$id,
+                        plaidAccountId: acc.plaidAccountId,
+                        name: acc.name,
+                        type: acc.type,
+                        institution: acc.institution,
+                        lastFour: acc.lastFour,
+                        balance: acc.currentBalance,
+                        currency: 'USD'
+                      })),
+                      total: accountsResponse.total
+                    }, null, 2)
+                  }]
                 }
-              })
-              .filter((txn: any) => txn !== null);
-
-            // Apply date filters if provided
-            if (toolArgs.startDate) {
-              transactions = transactions.filter((txn: any) => txn.date >= toolArgs.startDate);
-            }
-            if (toolArgs.endDate) {
-              transactions = transactions.filter((txn: any) => txn.date <= toolArgs.endDate);
-            }
-
-            // Apply category filter if provided
-            if (toolArgs.category) {
-              transactions = transactions.filter((txn: any) =>
-                txn.category.toLowerCase().includes(toolArgs.category.toLowerCase())
+              });
+            } catch (error) {
+              console.error('[get_accounts] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'get_accounts',
+                error,
+                'Unable to retrieve bank accounts. The accounts collection may be empty or the database may be unavailable.'
               );
             }
 
-            // Sort by date descending
-            transactions.sort((a: any, b: any) => b.date.localeCompare(a.date));
+          case 'get_transactions':
+            try {
+              // Query plaidTransactions collection - filter by userId and accountId if provided
+              const txnQueries = [Query.equal('userId', userId)];
 
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    transactions: transactions.slice(0, toolArgs.limit || 50),
-                    total: transactions.length,
-                    rawTotal: transactionsResponse.total
-                  }, null, 2)
-                }]
+              if (toolArgs.accountId) {
+                txnQueries.push(Query.equal('plaidAccountId', toolArgs.accountId));
               }
-            });
+
+              // Get more than requested since we'll filter in memory
+              txnQueries.push(Query.limit(Math.min(toolArgs.limit || 50, 500)));
+              txnQueries.push(Query.orderDesc('$createdAt'));
+
+              const transactionsResponse = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTIONS.PLAID_TRANSACTIONS,
+                txnQueries
+              );
+
+              // Parse rawData and filter/format transactions
+              let transactions = transactionsResponse.documents
+                .map((doc: any) => {
+                  try {
+                    const txn = JSON.parse(doc.rawData);
+                    return {
+                      id: doc.$id,
+                      plaidTransactionId: doc.plaidTransactionId,
+                      accountId: doc.plaidAccountId,
+                      date: txn.date || txn.authorized_date,
+                      name: txn.name || txn.merchant_name,
+                      amount: txn.amount,
+                      category: txn.category ? txn.category.join(', ') : 'Uncategorized',
+                      merchantName: txn.merchant_name || txn.name,
+                      pending: txn.pending || false,
+                      paymentChannel: txn.payment_channel
+                    };
+                  } catch (e) {
+                    console.error('Error parsing transaction rawData:', e);
+                    return null;
+                  }
+                })
+                .filter((txn: any) => txn !== null);
+
+              // Apply date filters if provided
+              if (toolArgs.startDate) {
+                transactions = transactions.filter((txn: any) => txn.date >= toolArgs.startDate);
+              }
+              if (toolArgs.endDate) {
+                transactions = transactions.filter((txn: any) => txn.date <= toolArgs.endDate);
+              }
+
+              // Apply category filter if provided
+              if (toolArgs.category) {
+                transactions = transactions.filter((txn: any) =>
+                  txn.category.toLowerCase().includes(toolArgs.category.toLowerCase())
+                );
+              }
+
+              // Sort by date descending
+              transactions.sort((a: any, b: any) => b.date.localeCompare(a.date));
+
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      transactions: transactions.slice(0, toolArgs.limit || 50),
+                      total: transactions.length,
+                      rawTotal: transactionsResponse.total
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[get_transactions] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'get_transactions',
+                error,
+                'Unable to retrieve transactions. Check that transactions exist in the database and the accountId (if provided) is valid.'
+              );
+            }
 
           case 'get_spending_summary':
-            const summaryEndDate = toolArgs.endDate || new Date().toISOString().split('T')[0];
-            const summaryStartDate = toolArgs.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            try {
+              const summaryEndDate = toolArgs.endDate || new Date().toISOString().split('T')[0];
+              const summaryStartDate = toolArgs.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
-            // Get all transactions for user (we'll filter dates in memory)
-            const summaryTransactions = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.PLAID_TRANSACTIONS,
-              [
-                Query.equal('userId', userId),
-                Query.limit(5000) // Get up to 5000 transactions for summary
-              ]
-            );
+              // Get all transactions for user (we'll filter dates in memory)
+              const summaryTransactions = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTIONS.PLAID_TRANSACTIONS,
+                [
+                  Query.equal('userId', userId),
+                  Query.limit(5000) // Get up to 5000 transactions for summary
+                ]
+              );
 
-            // Parse rawData, filter by date, and group by category
-            const categoryTotals: Record<string, number> = {};
-            let totalSpending = 0;
+              // Parse rawData, filter by date, and group by category
+              const categoryTotals: Record<string, number> = {};
+              let totalSpending = 0;
 
-            summaryTransactions.documents.forEach((doc: any) => {
-              try {
-                const txn = JSON.parse(doc.rawData);
-                const txnDate = txn.date || txn.authorized_date;
+              summaryTransactions.documents.forEach((doc: any) => {
+                try {
+                  const txn = JSON.parse(doc.rawData);
+                  const txnDate = txn.date || txn.authorized_date;
 
-                // Filter by date range
-                if (txnDate >= summaryStartDate && txnDate <= summaryEndDate) {
-                  if (txn.amount > 0) { // Only count expenses (positive amounts in Plaid)
-                    const category = txn.category ? txn.category.join(', ') : 'Uncategorized';
-                    categoryTotals[category] = (categoryTotals[category] || 0) + txn.amount;
-                    totalSpending += txn.amount;
+                  // Filter by date range
+                  if (txnDate >= summaryStartDate && txnDate <= summaryEndDate) {
+                    if (txn.amount > 0) { // Only count expenses (positive amounts in Plaid)
+                      const category = txn.category ? txn.category.join(', ') : 'Uncategorized';
+                      categoryTotals[category] = (categoryTotals[category] || 0) + txn.amount;
+                      totalSpending += txn.amount;
+                    }
                   }
+                } catch (e) {
+                  console.error('Error parsing transaction rawData:', e);
                 }
-              } catch (e) {
-                console.error('Error parsing transaction rawData:', e);
-              }
-            });
+              });
 
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    period: { startDate: summaryStartDate, endDate: summaryEndDate },
-                    totalSpending,
-                    categories: Object.entries(categoryTotals)
-                      .map(([category, amount]) => ({
-                        category,
-                        amount,
-                        percentage: totalSpending > 0 ? ((amount / totalSpending) * 100).toFixed(2) + '%' : '0%'
-                      }))
-                      .sort((a, b) => b.amount - a.amount)
-                  }, null, 2)
-                }]
-              }
-            });
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      period: { startDate: summaryStartDate, endDate: summaryEndDate },
+                      totalSpending,
+                      categories: Object.entries(categoryTotals)
+                        .map(([category, amount]) => ({
+                          category,
+                          amount,
+                          percentage: totalSpending > 0 ? ((amount / totalSpending) * 100).toFixed(2) + '%' : '0%'
+                        }))
+                        .sort((a, b) => b.amount - a.amount)
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[get_spending_summary] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'get_spending_summary',
+                error,
+                'Unable to generate spending summary. Check that transactions exist for the specified date range.'
+              );
+            }
 
           case 'list_unprocessed_files':
-            const unprocessedFiles = await databases.listDocuments(
-              DATABASE_ID,
-              'files',
-              [
-                Query.equal('userId', userId),
-                Query.equal('ocrStatus', 'pending'),
-                Query.limit(toolArgs.limit || 50),
-                Query.orderDesc('createdAt')
-              ]
-            );
+            try {
+              const unprocessedFiles = await databases.listDocuments(
+                DATABASE_ID,
+                'files',
+                [
+                  Query.equal('userId', userId),
+                  Query.equal('ocrStatus', 'pending'),
+                  Query.limit(toolArgs.limit || 50),
+                  Query.orderDesc('createdAt')
+                ]
+              );
 
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    files: unprocessedFiles.documents.map((f: any) => ({
-                      id: f.$id,
-                      fileId: f.fileId,
-                      fileName: f.fileName,
-                      mimeType: f.mimeType,
-                      fileSize: f.fileSize,
-                      createdAt: f.createdAt,
-                      ocrStatus: f.ocrStatus
-                    })),
-                    total: unprocessedFiles.total
-                  }, null, 2)
-                }]
-              }
-            });
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      files: unprocessedFiles.documents.map((f: any) => ({
+                        id: f.$id,
+                        fileId: f.fileId,
+                        fileName: f.fileName,
+                        mimeType: f.mimeType,
+                        fileSize: f.fileSize,
+                        createdAt: f.createdAt,
+                        ocrStatus: f.ocrStatus
+                      })),
+                      total: unprocessedFiles.total
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[list_unprocessed_files] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'list_unprocessed_files',
+                error,
+                'Unable to retrieve unprocessed files. The files collection may be empty or unavailable.'
+              );
+            }
 
           case 'view_file':
           case 'download_file': // Keep backward compatibility
-            // Get file metadata from database
-            const fileRecords = await databases.listDocuments(
-              DATABASE_ID,
-              'files',
-              [
-                Query.equal('userId', userId),
-                Query.equal('fileId', toolArgs.fileId),
-                Query.limit(1)
-              ]
-            );
+            try {
+              // Validate fileId parameter
+              if (!toolArgs.fileId) {
+                throw new Error('fileId parameter is required');
+              }
 
-            if (fileRecords.documents.length === 0) {
-              throw new Error(`File not found: ${toolArgs.fileId}`);
-            }
+              // Get file metadata from database
+              const fileRecords = await databases.listDocuments(
+                DATABASE_ID,
+                'files',
+                [
+                  Query.equal('userId', userId),
+                  Query.equal('fileId', toolArgs.fileId),
+                  Query.limit(1)
+                ]
+              );
 
-            const fileRecord = fileRecords.documents[0];
+              if (fileRecords.documents.length === 0) {
+                throw new Error(`File not found with ID: ${toolArgs.fileId}. File may have been deleted or you may not have permission to access it.`);
+              }
 
-            // Download file from Appwrite storage
-            const fileBuffer = await storage.getFileDownload('files', toolArgs.fileId);
+              const fileRecord = fileRecords.documents[0];
 
-            // Convert to base64
-            const base64Data = Buffer.from(fileBuffer).toString('base64');
+              // Download file from Appwrite storage
+              const fileBuffer = await storage.getFileDownload('files', toolArgs.fileId);
 
-            // Return appropriate content type based on mimeType
-            const mimeType = fileRecord.mimeType;
-            const content: any[] = [];
+              // Convert to base64
+              const base64Data = Buffer.from(fileBuffer).toString('base64');
 
-            if (mimeType.startsWith('image/')) {
-              // Return as ImageContent for vision processing
-              content.push({
-                type: 'image',
-                data: base64Data,
-                mimeType: mimeType
-              });
-              content.push({
-                type: 'text',
-                text: `Image: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}`
-              });
-            } else if (mimeType === 'application/pdf') {
-              // Return as EmbeddedResource for PDFs
-              content.push({
-                type: 'resource',
-                resource: {
-                  uri: `file:///${fileRecord.fileName}`,
-                  mimeType: 'application/pdf',
-                  blob: base64Data
+              // Return appropriate content type based on mimeType
+              const mimeType = fileRecord.mimeType;
+              const content: any[] = [];
+
+              if (mimeType.startsWith('image/')) {
+                // Return as ImageContent for vision processing
+                content.push({
+                  type: 'image',
+                  data: base64Data,
+                  mimeType: mimeType
+                });
+                content.push({
+                  type: 'text',
+                  text: `Image: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}`
+                });
+              } else if (mimeType === 'application/pdf') {
+                // Return as EmbeddedResource for PDFs
+                content.push({
+                  type: 'resource',
+                  resource: {
+                    uri: `file:///${fileRecord.fileName}`,
+                    mimeType: 'application/pdf',
+                    blob: base64Data
+                  }
+                });
+                content.push({
+                  type: 'text',
+                  text: `PDF Document: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nPages: Use Claude's PDF processing to extract content`
+                });
+              } else {
+                // Return as text with base64 for other file types
+                content.push({
+                  type: 'text',
+                  text: `File: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}\n\nBase64 Data:\n${base64Data.substring(0, 200)}... (truncated)`
+                });
+              }
+
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: content
                 }
               });
-              content.push({
-                type: 'text',
-                text: `PDF Document: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nPages: Use Claude's PDF processing to extract content`
-              });
-            } else {
-              // Return as text with base64 for other file types
-              content.push({
-                type: 'text',
-                text: `File: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}\n\nBase64 Data:\n${base64Data.substring(0, 200)}... (truncated)`
-              });
+            } catch (error) {
+              console.error('[view_file] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'view_file',
+                error,
+                'Unable to retrieve file. Check that the fileId is correct and the file exists in storage. Use list_unprocessed_files to see available files.'
+              );
             }
-
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: content
-              }
-            });
 
           case 'search_transactions':
-            const { amount, dateFrom, dateTo, merchant } = toolArgs;
+            try {
+              const { amount, dateFrom, dateTo, merchant } = toolArgs;
 
-            // Query plaid_transactions collection (can't filter by date since it's in rawData JSON)
-            const searchQueries = [
-              Query.equal('userId', userId),
-              Query.limit(5000) // Fetch ALL transactions since we filter in-memory
-            ];
+              // Validate required parameters
+              if (amount === undefined || !dateFrom || !dateTo) {
+                throw new Error('amount, dateFrom, and dateTo are required parameters');
+              }
 
-            const txnResults = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.PLAID_TRANSACTIONS,
-              searchQueries
-            );
+              // Query plaid_transactions collection (can't filter by date since it's in rawData JSON)
+              const searchQueries = [
+                Query.equal('userId', userId),
+                Query.limit(5000) // Fetch ALL transactions since we filter in-memory
+              ];
 
-            // Filter by date, amount (with tolerance), and optionally merchant
-            const filteredTxns = txnResults.documents
-              .filter((txn: any) => {
-                const rawData = JSON.parse(txn.rawData);
-                const txnDate = rawData.date || rawData.authorized_date;
-                const txnAmount = Math.abs(rawData.amount);
+              const txnResults = await databases.listDocuments(
+                DATABASE_ID,
+                COLLECTIONS.PLAID_TRANSACTIONS,
+                searchQueries
+              );
 
-                // Date range check
-                const dateMatch = txnDate >= dateFrom && txnDate <= dateTo;
+              // Filter by date, amount (with tolerance), and optionally merchant
+              const filteredTxns = txnResults.documents
+                .filter((txn: any) => {
+                  try {
+                    const rawData = JSON.parse(txn.rawData);
+                    const txnDate = rawData.date || rawData.authorized_date;
+                    const txnAmount = Math.abs(rawData.amount);
 
-                // Amount check (within 1 cent)
-                const amountMatch = Math.abs(txnAmount - amount) < 0.01;
+                    // Date range check
+                    const dateMatch = txnDate >= dateFrom && txnDate <= dateTo;
 
-                // Merchant check (optional)
-                const merchantName = rawData.merchant_name || rawData.name || '';
-                const merchantMatch = !merchant ||
-                  merchantName.toLowerCase().includes(merchant.toLowerCase());
+                    // Amount check (within 1 cent)
+                    const amountMatch = Math.abs(txnAmount - amount) < 0.01;
 
-                return dateMatch && amountMatch && merchantMatch;
+                    // Merchant check (optional)
+                    const merchantName = rawData.merchant_name || rawData.name || '';
+                    const merchantMatch = !merchant ||
+                      merchantName.toLowerCase().includes(merchant.toLowerCase());
+
+                    return dateMatch && amountMatch && merchantMatch;
+                  } catch (e) {
+                    console.error('Error parsing transaction in search:', e);
+                    return false;
+                  }
+                });
+
+              // For each transaction, check if it has any files linked (NEW ARCHITECTURE)
+              // Query files collection to see which transactions have receipts
+              const txnIds = filteredTxns.map((txn: any) => txn.$id);
+              const filesForTxns = txnIds.length > 0
+                ? await databases.listDocuments(
+                    DATABASE_ID,
+                    COLLECTIONS.FILES,
+                    [
+                      Query.equal('userId', userId),
+                      Query.isNotNull('transactionId'),
+                      Query.limit(1000) // Should be enough for most cases
+                    ]
+                  )
+                : { documents: [] };
+
+              // Create a map of transactionId -> has files
+              const txnHasReceipt = new Map<string, boolean>();
+              filesForTxns.documents.forEach((file: any) => {
+                if (file.transactionId) {
+                  txnHasReceipt.set(file.transactionId, true);
+                }
               });
 
-            // For each transaction, check if it has any files linked (NEW ARCHITECTURE)
-            // Query files collection to see which transactions have receipts
-            const txnIds = filteredTxns.map((txn: any) => txn.$id);
-            const filesForTxns = txnIds.length > 0
-              ? await databases.listDocuments(
-                  DATABASE_ID,
-                  COLLECTIONS.FILES,
-                  [
-                    Query.equal('userId', userId),
-                    Query.isNotNull('transactionId'),
-                    Query.limit(1000) // Should be enough for most cases
-                  ]
-                )
-              : { documents: [] };
+              // Map filtered transactions to result format with hasReceipt computed
+              const matches = filteredTxns.map((txn: any) => {
+                const rawData = JSON.parse(txn.rawData);
+                return {
+                  id: txn.$id,
+                  date: rawData.date || rawData.authorized_date,
+                  amount: Math.abs(rawData.amount),
+                  merchant: rawData.merchant_name || rawData.name,
+                  name: rawData.name,
+                  category: rawData.category ? rawData.category.join(', ') : 'Uncategorized',
+                  hasReceipt: txnHasReceipt.get(txn.$id) || false
+                };
+              });
 
-            // Create a map of transactionId -> has files
-            const txnHasReceipt = new Map<string, boolean>();
-            filesForTxns.documents.forEach((file: any) => {
-              if (file.transactionId) {
-                txnHasReceipt.set(file.transactionId, true);
-              }
-            });
-
-            // Map filtered transactions to result format with hasReceipt computed
-            const matches = filteredTxns.map((txn: any) => {
-              const rawData = JSON.parse(txn.rawData);
-              return {
-                id: txn.$id,
-                date: rawData.date || rawData.authorized_date,
-                amount: Math.abs(rawData.amount),
-                merchant: rawData.merchant_name || rawData.name,
-                name: rawData.name,
-                category: rawData.category ? rawData.category.join(', ') : 'Uncategorized',
-                hasReceipt: txnHasReceipt.get(txn.$id) || false
-              };
-            });
-
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    matches,
-                    total: matches.length,
-                    searchParams: { amount, dateFrom, dateTo, merchant }
-                  }, null, 2)
-                }]
-              }
-            });
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      matches,
+                      total: matches.length,
+                      searchParams: { amount, dateFrom, dateTo, merchant }
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[search_transactions] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'search_transactions',
+                error,
+                'Unable to search transactions. Ensure amount, dateFrom, and dateTo are provided in correct format (ISO date: YYYY-MM-DD).'
+              );
+            }
 
           case 'link_file_to_transaction':
-            // NEW ARCHITECTURE: Update file to link to transaction (not vice versa)
-            // Find the file document by fileId (Appwrite storage ID)
-            const filesToUpdate = await databases.listDocuments(
-              DATABASE_ID,
-              COLLECTIONS.FILES,
-              [
-                Query.equal('userId', userId),
-                Query.equal('fileId', toolArgs.fileId),
-                Query.limit(1)
-              ]
-            );
-
-            if (filesToUpdate.documents.length === 0) {
-              throw new Error(`File not found: ${toolArgs.fileId}`);
-            }
-
-            // Update file with transaction link and mark as completed
-            await databases.updateDocument(
-              DATABASE_ID,
-              COLLECTIONS.FILES,
-              filesToUpdate.documents[0].$id,
-              {
-                transactionId: toolArgs.transactionId,
-                fileType: toolArgs.fileType || 'receipt',
-                ocrStatus: 'completed'
+            try {
+              // Validate parameters
+              if (!toolArgs.fileId || !toolArgs.transactionId) {
+                throw new Error('fileId and transactionId are both required parameters');
               }
-            );
 
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    success: true,
-                    fileId: toolArgs.fileId,
-                    transactionId: toolArgs.transactionId,
-                    fileType: toolArgs.fileType || 'receipt',
-                    message: 'Receipt linked to transaction successfully'
-                  }, null, 2)
-                }]
-              }
-            });
-
-          case 'save_receipt_items':
-            const createdItems = [];
-
-            for (let i = 0; i < toolArgs.items.length; i++) {
-              const item = toolArgs.items[i];
-              const newItem = await databases.createDocument(
+              // NEW ARCHITECTURE: Update file to link to transaction (not vice versa)
+              // Find the file document by fileId (Appwrite storage ID)
+              const filesToUpdate = await databases.listDocuments(
                 DATABASE_ID,
-                'receiptItems',
-                ID.unique(),
+                COLLECTIONS.FILES,
+                [
+                  Query.equal('userId', userId),
+                  Query.equal('fileId', toolArgs.fileId),
+                  Query.limit(1)
+                ]
+              );
+
+              if (filesToUpdate.documents.length === 0) {
+                throw new Error(`File not found with ID: ${toolArgs.fileId}. Use list_unprocessed_files to see available files.`);
+              }
+
+              // Update file with transaction link and mark as completed
+              await databases.updateDocument(
+                DATABASE_ID,
+                COLLECTIONS.FILES,
+                filesToUpdate.documents[0].$id,
                 {
-                  userId: userId, // NEW: add userId for security
                   transactionId: toolArgs.transactionId,
-                  fileId: toolArgs.fileId || null, // NEW: link to specific receipt file
-                  name: item.name,
-                  quantity: item.quantity,
-                  price: item.price,
-                  totalPrice: item.totalPrice || (item.quantity * item.price),
-                  category: item.category || null,
-                  tags: item.tags || [] // NEW: business/personal tags
+                  fileType: toolArgs.fileType || 'receipt',
+                  ocrStatus: 'completed'
                 }
               );
-              createdItems.push(newItem.$id);
+
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      fileId: toolArgs.fileId,
+                      transactionId: toolArgs.transactionId,
+                      fileType: toolArgs.fileType || 'receipt',
+                      message: 'Receipt linked to transaction successfully'
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[link_file_to_transaction] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'link_file_to_transaction',
+                error,
+                'Unable to link file to transaction. Ensure both fileId and transactionId are valid and exist in the database.'
+              );
             }
 
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    success: true,
-                    itemsCreated: createdItems.length,
-                    itemIds: createdItems,
-                    transactionId: toolArgs.transactionId
-                  }, null, 2)
-                }]
+          case 'save_receipt_items':
+            try {
+              // Validate parameters
+              if (!toolArgs.transactionId || !toolArgs.items || !Array.isArray(toolArgs.items)) {
+                throw new Error('transactionId and items array are required parameters');
               }
-            });
+
+              if (toolArgs.items.length === 0) {
+                throw new Error('items array cannot be empty');
+              }
+
+              const createdItems = [];
+
+              for (let i = 0; i < toolArgs.items.length; i++) {
+                const item = toolArgs.items[i];
+
+                // Validate item fields
+                if (!item.name || item.quantity === undefined || item.price === undefined) {
+                  console.error(`Invalid item at index ${i}:`, item);
+                  continue; // Skip invalid items
+                }
+
+                const newItem = await databases.createDocument(
+                  DATABASE_ID,
+                  'receiptItems',
+                  ID.unique(),
+                  {
+                    userId: userId, // NEW: add userId for security
+                    transactionId: toolArgs.transactionId,
+                    fileId: toolArgs.fileId || null, // NEW: link to specific receipt file
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    totalPrice: item.totalPrice || (item.quantity * item.price),
+                    category: item.category || null,
+                    tags: item.tags || [] // NEW: business/personal tags
+                  }
+                );
+                createdItems.push(newItem.$id);
+              }
+
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      itemsCreated: createdItems.length,
+                      itemIds: createdItems,
+                      transactionId: toolArgs.transactionId
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[save_receipt_items] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'save_receipt_items',
+                error,
+                'Unable to save receipt items. Ensure transactionId is valid and items array contains valid objects with name, quantity, and price fields.'
+              );
+            }
 
           case 'refresh_transactions':
-            // Call the fetch-data API endpoint in background mode
-            const fetchUrl = new URL('/api/plaid/fetch-data', request.url);
+            try {
+              // Call the fetch-data API endpoint in background mode
+              const fetchUrl = new URL('/api/plaid/fetch-data', request.url);
 
-            const fetchResponse = await fetch(fetchUrl.toString(), {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                userId,
-                background: true // Enable background mode
-              })
-            });
-
-            if (!fetchResponse.ok) {
-              const errorData = await fetchResponse.json();
-              throw new Error(errorData.error || 'Failed to refresh transactions');
-            }
-
-            const refreshData = await fetchResponse.json();
-
-            // Return immediately with jobId
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    success: true,
-                    message: 'Transaction sync started in background',
-                    jobId: refreshData.jobId,
-                    statusUrl: `/api/plaid/sync-status?userId=${userId}&jobId=${refreshData.jobId}`,
-                    instructions: 'Check sync status by visiting the status URL or wait a moment and check your transaction count'
-                  }, null, 2)
-                }]
-              }
-            });
-
-          case 'upload_file':
-            const { fileData, fileName, mimeType: providedMimeType } = toolArgs;
-
-            if (!fileData || !fileName) {
-              throw new Error('fileData and fileName are required');
-            }
-
-            // Decode base64 file data
-            let buffer = Buffer.from(fileData, 'base64');
-
-            // Check file size (20MB limit)
-            const maxSize = 20 * 1024 * 1024;
-            if (buffer.length > maxSize) {
-              throw new Error('File too large. Maximum size is 20MB');
-            }
-
-            // Detect file type
-            const detectedType = await fileTypeFromBuffer(buffer);
-            let finalMimeType = providedMimeType || detectedType?.mime || 'application/octet-stream';
-            let finalFileName = fileName;
-            let finalBuffer = buffer;
-
-            // Convert HEIC to JPEG
-            if (detectedType?.mime === 'image/heic' || detectedType?.mime === 'image/heif') {
-              console.log('Converting HEIC to JPEG...');
-
-              const outputBuffer = await heicConvert({
-                buffer: buffer,
-                format: 'JPEG',
-                quality: 0.9
+              const fetchResponse = await fetch(fetchUrl.toString(), {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  userId,
+                  background: true // Enable background mode
+                })
               });
 
-              finalBuffer = Buffer.from(outputBuffer);
-              finalMimeType = 'image/jpeg';
-              finalFileName = finalFileName.replace(/\.(heic|heif)$/i, '.jpg');
+              if (!fetchResponse.ok) {
+                const errorData = await fetchResponse.json();
+                throw new Error(errorData.error || `Plaid API returned ${fetchResponse.status}`);
+              }
 
-              console.log(`Converted ${buffer.length} bytes → ${finalBuffer.length} bytes`);
+              const refreshData = await fetchResponse.json();
+
+              // Return immediately with jobId
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      message: 'Transaction sync started in background',
+                      jobId: refreshData.jobId,
+                      statusUrl: `/api/plaid/sync-status?userId=${userId}&jobId=${refreshData.jobId}`,
+                      instructions: 'Check sync status by visiting the status URL or wait a moment and check your transaction count'
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[refresh_transactions] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'refresh_transactions',
+                error,
+                'Unable to refresh transactions from Plaid. The Plaid API may be unavailable or your Plaid items may need reconnection.'
+              );
             }
 
-            // Upload to Appwrite Storage
-            const uploadedFile = await storage.createFile(
-              STORAGE_BUCKETS.FILES,
-              ID.unique(),
-              InputFile.fromBuffer(finalBuffer, finalFileName),
-              [`read("user:${userId}")`, `delete("user:${userId}")`]
-            );
+          case 'upload_file':
+            try {
+              const { fileData, fileName, mimeType: providedMimeType } = toolArgs;
 
-            console.log(`Uploaded to storage: ${uploadedFile.$id}`);
-
-            // Create file metadata in database
-            const fileDoc = await databases.createDocument(
-              DATABASE_ID,
-              COLLECTIONS.FILES,
-              ID.unique(),
-              {
-                userId,
-                fileId: uploadedFile.$id,
-                fileName: finalFileName,
-                mimeType: finalMimeType,
-                fileSize: finalBuffer.length,
-                fileType: 'receipt', // Default to receipt for uploaded files
-                ocrStatus: 'pending',
-                createdAt: new Date().toISOString(),
+              // Validate parameters
+              if (!fileData || !fileName) {
+                throw new Error('fileData and fileName are both required parameters');
               }
-            );
 
-            return NextResponse.json({
-              jsonrpc: '2.0',
-              id: body.id,
-              result: {
-                content: [{
-                  type: 'text',
-                  text: JSON.stringify({
-                    success: true,
-                    fileId: uploadedFile.$id,
-                    documentId: fileDoc.$id,
-                    fileName: finalFileName,
-                    mimeType: finalMimeType,
-                    fileSize: finalBuffer.length,
-                    message: `Successfully uploaded ${finalFileName} (${Math.round(finalBuffer.length / 1024)} KB)`
-                  }, null, 2)
-                }]
+              // Decode base64 file data
+              let buffer;
+              try {
+                buffer = Buffer.from(fileData, 'base64');
+              } catch (e) {
+                throw new Error('Invalid base64 fileData. Ensure the file is properly base64-encoded.');
               }
-            });
+
+              // Check file size (20MB limit)
+              const maxSize = 20 * 1024 * 1024;
+              if (buffer.length > maxSize) {
+                throw new Error(`File too large: ${Math.round(buffer.length / 1024 / 1024)}MB. Maximum size is 20MB. Consider compressing the image.`);
+              }
+
+              if (buffer.length === 0) {
+                throw new Error('File is empty (0 bytes). Ensure the fileData is not empty.');
+              }
+
+              // Detect file type
+              const detectedType = await fileTypeFromBuffer(buffer);
+              let finalMimeType = providedMimeType || detectedType?.mime || 'application/octet-stream';
+              let finalFileName = fileName;
+              let finalBuffer = buffer;
+
+              // Convert HEIC to JPEG
+              if (detectedType?.mime === 'image/heic' || detectedType?.mime === 'image/heif') {
+                console.log('Converting HEIC to JPEG...');
+
+                const outputBuffer = await heicConvert({
+                  buffer: buffer,
+                  format: 'JPEG',
+                  quality: 0.9
+                });
+
+                finalBuffer = Buffer.from(outputBuffer);
+                finalMimeType = 'image/jpeg';
+                finalFileName = finalFileName.replace(/\.(heic|heif)$/i, '.jpg');
+
+                console.log(`Converted ${buffer.length} bytes → ${finalBuffer.length} bytes`);
+              }
+
+              // Upload to Appwrite Storage
+              const uploadedFile = await storage.createFile(
+                STORAGE_BUCKETS.FILES,
+                ID.unique(),
+                InputFile.fromBuffer(finalBuffer, finalFileName),
+                [`read("user:${userId}")`, `delete("user:${userId}")`]
+              );
+
+              console.log(`Uploaded to storage: ${uploadedFile.$id}`);
+
+              // Create file metadata in database
+              const fileDoc = await databases.createDocument(
+                DATABASE_ID,
+                COLLECTIONS.FILES,
+                ID.unique(),
+                {
+                  userId,
+                  fileId: uploadedFile.$id,
+                  fileName: finalFileName,
+                  mimeType: finalMimeType,
+                  fileSize: finalBuffer.length,
+                  fileType: 'receipt', // Default to receipt for uploaded files
+                  ocrStatus: 'pending',
+                  createdAt: new Date().toISOString(),
+                }
+              );
+
+              return NextResponse.json({
+                jsonrpc: '2.0',
+                id: body.id,
+                result: {
+                  content: [{
+                    type: 'text',
+                    text: JSON.stringify({
+                      success: true,
+                      fileId: uploadedFile.$id,
+                      documentId: fileDoc.$id,
+                      fileName: finalFileName,
+                      mimeType: finalMimeType,
+                      fileSize: finalBuffer.length,
+                      message: `Successfully uploaded ${finalFileName} (${Math.round(finalBuffer.length / 1024)} KB)`
+                    }, null, 2)
+                  }]
+                }
+              });
+            } catch (error) {
+              console.error('[upload_file] Error:', error);
+              return createErrorResponse(
+                body.id,
+                'upload_file',
+                error,
+                'Unable to upload file. Ensure fileData is valid base64 and fileName includes extension (e.g., "receipt.jpg"). File must be under 20MB.'
+              );
+            }
 
           default:
             return NextResponse.json(
