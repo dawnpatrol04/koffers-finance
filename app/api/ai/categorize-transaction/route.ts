@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { validateSession } from '@/lib/auth-helpers';
 
 // Merchant categorization cache
 // Maps normalized merchant name → category
@@ -161,6 +162,9 @@ export async function GET() {
 // PATCH endpoint for manual category override
 export async function PATCH(request: NextRequest) {
   try {
+    // Validate session
+    await validateSession();
+
     const { transactionId, category } = await request.json();
 
     if (!transactionId || !category) {
@@ -233,6 +237,11 @@ export async function PATCH(request: NextRequest) {
     });
 
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('Error updating category:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to update category' },
@@ -243,6 +252,9 @@ export async function PATCH(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate session
+    await validateSession();
+
     const { transactionId, transactionIds } = await request.json();
 
     // Handle batch categorization
@@ -370,6 +382,11 @@ Category:`,
     });
 
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('Error categorizing transaction:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to categorize transaction' },

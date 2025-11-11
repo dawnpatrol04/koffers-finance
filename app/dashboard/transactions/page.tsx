@@ -12,6 +12,8 @@ import { TransactionSheet } from '@/components/sheets/transaction-sheet';
 import { useTransactionParams } from '@/hooks/use-transaction-params';
 import { Plus, Search, ArrowLeft, RefreshCw, ArrowUpDown } from 'lucide-react';
 import type { Transaction } from '@/types/transaction';
+import { databases } from '@/lib/appwrite-client';
+import { Query } from 'appwrite';
 
 interface ApiTransaction {
   $id: string;
@@ -115,31 +117,25 @@ function TransactionsContent() {
       try {
         setLoading(true);
 
-        // Get date range
-        const dateRange = getDateRange();
+        // Build Appwrite queries
+        const queries = [Query.limit(100)];
 
-        // Build query params
-        const params = new URLSearchParams({
-          userId: user.$id,
-          limit: '100',
-          offset: '0',
-          sortBy,
-          sortOrder,
-          search: debouncedSearch
-        });
+        // Add search if provided
+        if (debouncedSearch) {
+          queries.push(Query.search('merchantName', debouncedSearch));
+        }
 
-        // Add date range if available
-        if (dateRange.from) params.set('dateFrom', dateRange.from);
-        if (dateRange.to) params.set('dateTo', dateRange.to);
+        // Use Appwrite SDK directly - automatically filtered by user session
+        const response = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          'plaidTransactions',
+          queries
+        );
 
-        const response = await fetch(`/api/plaid/transactions?${params.toString()}`);
-        const data = await response.json();
-
-        if (data.success) {
-          // Map API transactions to Transaction type
-          const mappedTransactions: Transaction[] = data.transactions.map((t: ApiTransaction) => {
-            const categories = t.category ? JSON.parse(t.category) : [];
-            const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+        // Map API transactions to Transaction type
+        const mappedTransactions: Transaction[] = response.documents.map((t: any) => {
+            const data = JSON.parse(t.rawData);
+            const displayCategory = data.personal_finance_category?.primary || 'Uncategorized';
 
             // Format date from YYYY-MM-DD to MM/DD/YYYY
             const formatDate = (dateString: string) => {
@@ -156,13 +152,13 @@ function TransactionsContent() {
 
             return {
               id: t.$id,
-              date: formatDate(t.date),
-              merchant: t.merchantName,
-              merchantSubtext: `${t.name} • ${t.accountName} (${t.accountLastFour})`,
-              amount: t.amount,
+              date: formatDate(data.date || new Date().toISOString()),
+              merchant: data.merchant_name || data.name || 'Unknown',
+              merchantSubtext: data.name || '',
+              amount: data.amount || 0,
               category: displayCategory,
-              channel: t.paymentChannel || 'Other',
-              status: t.pending ? 'pending' : 'completed',
+              channel: data.payment_channel || 'Other',
+              status: data.pending ? 'pending' : 'completed',
               hasReceipt: false,
               hasCommentary: false,
               isReviewed: false,
@@ -172,11 +168,9 @@ function TransactionsContent() {
           });
 
           setTransactions(mappedTransactions);
-          setHasMore(data.hasMore);
-          setTotal(data.total);
-        } else {
-          setError(data.error || 'Failed to fetch transactions');
-        }
+          setHasMore(response.total > response.documents.length);
+          setTotal(response.total);
+          setError(null);
       } catch (err: any) {
         console.error('Error fetching transactions:', err);
         setError(err.message);
@@ -194,30 +188,26 @@ function TransactionsContent() {
     try {
       setLoadingMore(true);
 
-      // Get date range
-      const dateRange = getDateRange();
+      // Build Appwrite queries with offset
+      const queries = [
+        Query.limit(100),
+        Query.offset(transactions.length)
+      ];
 
-      // Build query params
-      const params = new URLSearchParams({
-        userId: user.$id,
-        limit: '100',
-        offset: transactions.length.toString(),
-        sortBy,
-        sortOrder,
-        search: debouncedSearch
-      });
+      // Add search if provided
+      if (debouncedSearch) {
+        queries.push(Query.search('merchantName', debouncedSearch));
+      }
 
-      // Add date range if available
-      if (dateRange.from) params.set('dateFrom', dateRange.from);
-      if (dateRange.to) params.set('dateTo', dateRange.to);
+      const response = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+        'plaidTransactions',
+        queries
+      );
 
-      const response = await fetch(`/api/plaid/transactions?${params.toString()}`);
-      const data = await response.json();
-
-      if (data.success) {
-        const mappedTransactions: Transaction[] = data.transactions.map((t: ApiTransaction) => {
-          const categories = t.category ? JSON.parse(t.category) : [];
-          const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+      const mappedTransactions: Transaction[] = response.documents.map((t: any) => {
+          const data = JSON.parse(t.rawData);
+          const displayCategory = data.personal_finance_category?.primary || 'Uncategorized';
 
           const formatDate = (dateString: string) => {
             try {
@@ -233,13 +223,13 @@ function TransactionsContent() {
 
           return {
             id: t.$id,
-            date: formatDate(t.date),
-            merchant: t.merchantName,
-            merchantSubtext: `${t.name} • ${t.accountName} (${t.accountLastFour})`,
-            amount: t.amount,
+            date: formatDate(data.date || new Date().toISOString()),
+            merchant: data.merchant_name || data.name || 'Unknown',
+            merchantSubtext: data.name || '',
+            amount: data.amount || 0,
             category: displayCategory,
-            channel: t.paymentChannel || 'Other',
-            status: t.pending ? 'pending' : 'completed',
+            channel: data.payment_channel || 'Other',
+            status: data.pending ? 'pending' : 'completed',
             hasReceipt: false,
             hasCommentary: false,
             isReviewed: false,
@@ -249,8 +239,7 @@ function TransactionsContent() {
         });
 
         setTransactions(prev => [...prev, ...mappedTransactions]);
-        setHasMore(data.hasMore);
-      }
+        setHasMore(response.total > transactions.length + response.documents.length);
     } catch (err: any) {
       console.error('Error loading more transactions:', err);
     } finally {
@@ -273,14 +262,16 @@ function TransactionsContent() {
       const data = await response.json();
 
       if (data.success) {
-        // Refetch transactions to get the latest
-        const txnResponse = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100`);
-        const txnData = await txnResponse.json();
+        // Refetch transactions to get the latest using Appwrite SDK
+        const txnResponse = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          'plaidTransactions',
+          [Query.limit(100)]
+        );
 
-        if (txnData.success) {
-          const mappedTransactions: Transaction[] = txnData.transactions.map((t: ApiTransaction) => {
-            const categories = t.category ? JSON.parse(t.category) : [];
-            const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+        const mappedTransactions: Transaction[] = txnResponse.documents.map((t: any) => {
+            const data = JSON.parse(t.rawData);
+            const displayCategory = data.personal_finance_category?.primary || 'Uncategorized';
 
             const formatDate = (dateString: string) => {
               try {
@@ -296,13 +287,13 @@ function TransactionsContent() {
 
             return {
               id: t.$id,
-              date: formatDate(t.date),
-              merchant: t.merchantName,
-              merchantSubtext: t.name,
-              amount: t.amount,
+              date: formatDate(data.date || new Date().toISOString()),
+              merchant: data.merchant_name || data.name || 'Unknown',
+              merchantSubtext: data.name || '',
+              amount: data.amount || 0,
               category: displayCategory,
-              channel: t.paymentChannel || 'Other',
-              status: t.pending ? 'pending' : 'completed',
+              channel: data.payment_channel || 'Other',
+              status: data.pending ? 'pending' : 'completed',
               hasReceipt: false,
               hasCommentary: false,
               isReviewed: false,
@@ -312,7 +303,6 @@ function TransactionsContent() {
           });
 
           setTransactions(mappedTransactions);
-        }
       } else {
         setError(data.error || 'Failed to refresh transactions');
       }

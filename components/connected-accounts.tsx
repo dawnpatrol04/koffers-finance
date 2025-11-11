@@ -21,6 +21,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { PlaidLink } from "@/components/plaid/plaid-link";
 import { useUser } from "@/contexts/user-context";
+import { databases } from "@/lib/appwrite-client";
 
 interface PlaidAccount {
   $id: string;
@@ -61,15 +62,18 @@ export function ConnectedAccounts() {
     const fetchAccounts = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/plaid/accounts?userId=${user.$id}`);
-        const data = await response.json();
 
-        if (data.success) {
-          setAccounts(data.accounts || []);
+        // Use Appwrite SDK directly
+        const response = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          'accounts'
+        );
 
-          // Build a map of item IDs to institution info
-          const itemsMap = new Map<string, PlaidItem>();
-          data.accounts?.forEach((account: PlaidAccount) => {
+        setAccounts(response.documents as any[] || []);
+
+        // Build a map of item IDs to institution info
+        const itemsMap = new Map<string, PlaidItem>();
+        response.documents?.forEach((account: any) => {
             if (!itemsMap.has(account.itemId)) {
               itemsMap.set(account.itemId, {
                 $id: account.itemId,
@@ -78,9 +82,8 @@ export function ConnectedAccounts() {
                 institutionId: null,
               });
             }
-          });
-          setItems(itemsMap);
-        }
+        });
+        setItems(itemsMap);
       } catch (err) {
         console.error('Error fetching accounts:', err);
       } finally {

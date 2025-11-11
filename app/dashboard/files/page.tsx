@@ -10,6 +10,8 @@ import type { FileDocument } from "@/types/file"
 import Link from "next/link"
 import { useUser } from "@/contexts/user-context"
 import { useEffect, useCallback } from "react"
+import { databases } from "@/lib/appwrite-client"
+import { Query } from "appwrite"
 
 export default function FilesPage() {
   const { user } = useUser()
@@ -24,12 +26,18 @@ export default function FilesPage() {
     if (!user) return
 
     try {
-      const response = await fetch(`/api/files?userId=${user.$id}`)
-      if (response.ok) {
-        const data = await response.json()
+      // Use Appwrite SDK directly - automatically filtered by user session
+      const response = await databases.listDocuments(
+        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+        'files',
+        [
+          Query.orderDesc('createdAt'),
+          Query.limit(100)
+        ]
+      )
 
-        // Map API files to FileDocument type
-        const mappedFiles: FileDocument[] = (data.files || []).map((file: any) => {
+      // Map API files to FileDocument type
+      const mappedFiles: FileDocument[] = response.documents.map((file: any) => {
           // Generate preview URL for images using Appwrite's client SDK
           // This uses the authenticated session and respects file permissions
           const isImage = file.mimeType?.includes('image')
@@ -51,8 +59,7 @@ export default function FilesPage() {
           }
         })
 
-        setFiles(mappedFiles)
-      }
+      setFiles(mappedFiles)
     } catch (error) {
       console.error("Failed to fetch files:", error)
     } finally {

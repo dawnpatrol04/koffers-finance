@@ -3,6 +3,7 @@ import { plaidClient } from '@/lib/plaid';
 import { databases, DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import { TransactionsSyncRequest } from 'plaid';
+import { validateSession } from '@/lib/auth-helpers';
 
 /**
  * Fetch and sync transaction data from Plaid
@@ -13,15 +14,11 @@ import { TransactionsSyncRequest } from 'plaid';
  */
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json().catch(() => ({}));
-    const { userId, background = false } = body;
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'userId is required' },
-        { status: 400 }
-      );
-    }
+    const body = await request.json().catch(() => ({}));
+    const { background = false } = body;
 
     // Create sync job record
     const syncJob = await databases.createDocument(
@@ -64,6 +61,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(result);
 
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('❌ Fatal error fetching Plaid data:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to fetch Plaid data' },

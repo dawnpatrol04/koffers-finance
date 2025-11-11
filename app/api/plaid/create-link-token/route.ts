@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlaidProducts, getCountryCodes } from '@/lib/plaid';
+import { validateSession } from '@/lib/auth-helpers';
 
 // PRODUCTION ONLY - No sandbox
 const PLAID_BASE_URL = 'https://production.plaid.com';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId } = body;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
-    }
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
     // Make direct HTTP request to Plaid API to avoid SDK header issues on Vercel
     const plaidResponse = await fetch(`${PLAID_BASE_URL}/link/token/create`, {
@@ -44,6 +41,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ link_token: data.link_token });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('Error creating link token:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to create link token' },

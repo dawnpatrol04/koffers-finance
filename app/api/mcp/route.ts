@@ -9,6 +9,9 @@ import { Query, ID } from 'node-appwrite';
  * Authentication is done via API keys created in the Developer settings.
  */
 
+// Allow up to 60 seconds for file downloads and processing
+export const maxDuration = 60;
+
 // Validate API key and return userId
 async function validateApiKey(apiKey: string): Promise<string | null> {
   if (!apiKey || !apiKey.startsWith('kf_live_')) {
@@ -233,6 +236,11 @@ export async function POST(request: NextRequest) {
                   transactionId: {
                     type: 'string',
                     description: 'ID from transactions collection'
+                  },
+                  fileType: {
+                    type: 'string',
+                    description: 'Type of file: receipt, return, warranty, invoice, note, other (default: receipt)',
+                    enum: ['receipt', 'return', 'warranty', 'invoice', 'note', 'other']
                   }
                 },
                 required: ['fileId', 'transactionId']
@@ -247,6 +255,10 @@ export async function POST(request: NextRequest) {
                   transactionId: {
                     type: 'string',
                     description: 'Transaction ID to link items to'
+                  },
+                  fileId: {
+                    type: 'string',
+                    description: 'Optional file ID to link items to specific receipt file'
                   },
                   items: {
                     type: 'array',
@@ -274,9 +286,10 @@ export async function POST(request: NextRequest) {
                           type: 'string',
                           description: 'Optional item category'
                         },
-                        sku: {
-                          type: 'string',
-                          description: 'Optional SKU/product code'
+                        tags: {
+                          type: 'array',
+                          items: { type: 'string' },
+                          description: 'Optional tags (e.g., ["business", "personal"])'
                         }
                       },
                       required: ['name', 'quantity', 'price']
@@ -507,7 +520,11 @@ export async function POST(request: NextRequest) {
             const fileRecords = await databases.listDocuments(
               DATABASE_ID,
               'files',
-              [Query.equal('fileId', toolArgs.fileId), Query.limit(1)]
+              [
+                Query.equal('userId', userId),
+                Query.equal('fileId', toolArgs.fileId),
+                Query.limit(1)
+              ]
             );
 
             if (fileRecords.documents.length === 0) {
@@ -570,12 +587,10 @@ export async function POST(request: NextRequest) {
           case 'search_transactions':
             const { amount, dateFrom, dateTo, merchant } = toolArgs;
 
-            // Query plaid_transactions collection
+            // Query plaid_transactions collection (can't filter by date since it's in rawData JSON)
             const searchQueries = [
               Query.equal('userId', userId),
-              Query.greaterThanEqual('date', dateFrom),
-              Query.lessThanEqual('date', dateTo),
-              Query.limit(100)
+              Query.limit(500) // Fetch more since we filter in-memory
             ];
 
             const txnResults = await databases.listDocuments(
@@ -584,30 +599,63 @@ export async function POST(request: NextRequest) {
               searchQueries
             );
 
-            // Filter by amount (with tolerance) and optionally merchant
-            const matches = txnResults.documents
+            // Filter by date, amount (with tolerance), and optionally merchant
+            const filteredTxns = txnResults.documents
               .filter((txn: any) => {
                 const rawData = JSON.parse(txn.rawData);
+                const txnDate = rawData.date || rawData.authorized_date;
                 const txnAmount = Math.abs(rawData.amount);
+
+                // Date range check
+                const dateMatch = txnDate >= dateFrom && txnDate <= dateTo;
+
+                // Amount check (within 1 cent)
                 const amountMatch = Math.abs(txnAmount - amount) < 0.01;
+
+                // Merchant check (optional)
                 const merchantName = rawData.merchant_name || rawData.name || '';
                 const merchantMatch = !merchant ||
                   merchantName.toLowerCase().includes(merchant.toLowerCase());
-                return amountMatch && merchantMatch;
-              })
-              .map((txn: any) => {
-                const rawData = JSON.parse(txn.rawData);
-                return {
-                  id: txn.$id,
-                  date: rawData.date || rawData.authorized_date,
-                  amount: Math.abs(rawData.amount),
-                  merchant: rawData.merchant_name || rawData.name,
-                  name: rawData.name,
-                  category: rawData.category ? rawData.category.join(', ') : 'Uncategorized',
-                  fileId: txn.fileId,
-                  hasReceipt: !!txn.fileId
-                };
+
+                return dateMatch && amountMatch && merchantMatch;
               });
+
+            // For each transaction, check if it has any files linked (NEW ARCHITECTURE)
+            // Query files collection to see which transactions have receipts
+            const txnIds = filteredTxns.map((txn: any) => txn.$id);
+            const filesForTxns = txnIds.length > 0
+              ? await databases.listDocuments(
+                  DATABASE_ID,
+                  COLLECTIONS.FILES,
+                  [
+                    Query.equal('userId', userId),
+                    Query.isNotNull('transactionId'),
+                    Query.limit(1000) // Should be enough for most cases
+                  ]
+                )
+              : { documents: [] };
+
+            // Create a map of transactionId -> has files
+            const txnHasReceipt = new Map<string, boolean>();
+            filesForTxns.documents.forEach((file: any) => {
+              if (file.transactionId) {
+                txnHasReceipt.set(file.transactionId, true);
+              }
+            });
+
+            // Map filtered transactions to result format with hasReceipt computed
+            const matches = filteredTxns.map((txn: any) => {
+              const rawData = JSON.parse(txn.rawData);
+              return {
+                id: txn.$id,
+                date: rawData.date || rawData.authorized_date,
+                amount: Math.abs(rawData.amount),
+                merchant: rawData.merchant_name || rawData.name,
+                name: rawData.name,
+                category: rawData.category ? rawData.category.join(', ') : 'Uncategorized',
+                hasReceipt: txnHasReceipt.get(txn.$id) || false
+              };
+            });
 
             return NextResponse.json({
               jsonrpc: '2.0',
@@ -625,29 +673,33 @@ export async function POST(request: NextRequest) {
             });
 
           case 'link_file_to_transaction':
-            // Update plaid transaction with fileId
-            await databases.updateDocument(
-              DATABASE_ID,
-              COLLECTIONS.PLAID_TRANSACTIONS,
-              toolArgs.transactionId,
-              { fileId: toolArgs.fileId }
-            );
-
-            // Update file ocrStatus to completed
+            // NEW ARCHITECTURE: Update file to link to transaction (not vice versa)
+            // Find the file document by fileId (Appwrite storage ID)
             const filesToUpdate = await databases.listDocuments(
               DATABASE_ID,
               COLLECTIONS.FILES,
-              [Query.equal('fileId', toolArgs.fileId), Query.limit(1)]
+              [
+                Query.equal('userId', userId),
+                Query.equal('fileId', toolArgs.fileId),
+                Query.limit(1)
+              ]
             );
 
-            if (filesToUpdate.documents.length > 0) {
-              await databases.updateDocument(
-                DATABASE_ID,
-                'files',
-                filesToUpdate.documents[0].$id,
-                { ocrStatus: 'completed' }
-              );
+            if (filesToUpdate.documents.length === 0) {
+              throw new Error(`File not found: ${toolArgs.fileId}`);
             }
+
+            // Update file with transaction link and mark as completed
+            await databases.updateDocument(
+              DATABASE_ID,
+              COLLECTIONS.FILES,
+              filesToUpdate.documents[0].$id,
+              {
+                transactionId: toolArgs.transactionId,
+                fileType: toolArgs.fileType || 'receipt',
+                ocrStatus: 'completed'
+              }
+            );
 
             return NextResponse.json({
               jsonrpc: '2.0',
@@ -659,6 +711,7 @@ export async function POST(request: NextRequest) {
                     success: true,
                     fileId: toolArgs.fileId,
                     transactionId: toolArgs.transactionId,
+                    fileType: toolArgs.fileType || 'receipt',
                     message: 'Receipt linked to transaction successfully'
                   }, null, 2)
                 }]
@@ -675,14 +728,15 @@ export async function POST(request: NextRequest) {
                 'receiptItems',
                 ID.unique(),
                 {
+                  userId: userId, // NEW: add userId for security
                   transactionId: toolArgs.transactionId,
+                  fileId: toolArgs.fileId || null, // NEW: link to specific receipt file
                   name: item.name,
                   quantity: item.quantity,
                   price: item.price,
                   totalPrice: item.totalPrice || (item.quantity * item.price),
                   category: item.category || null,
-                  sku: item.sku || null,
-                  sortOrder: i
+                  tags: item.tags || [] // NEW: business/personal tags
                 }
               );
               createdItems.push(newItem.$id);

@@ -3,44 +3,19 @@ import { streamText, convertToModelMessages, type UIMessage, tool } from 'ai';
 import { z } from 'zod';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
-import { cookies } from 'next/headers';
+import { validateSession } from '@/lib/auth-helpers';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
-// Helper to get current user ID from session
-async function getCurrentUserId(): Promise<string | null> {
-  try {
-    const cookieStore = await cookies();
-    const session = cookieStore.get('session');
-
-    if (!session) {
-      return null;
-    }
-
-    const sessionData = JSON.parse(session.value);
-    return sessionData.userId || null;
-  } catch (error) {
-    console.error('Error getting user ID:', error);
-    return null;
-  }
-}
-
 export async function POST(req: Request) {
-  const { messages, userId: clientUserId }: { messages: UIMessage[]; userId?: string } = await req.json();
+  try {
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
-  // Try to get user ID from session, fallback to client-provided userId
-  let userId = await getCurrentUserId();
+    const { messages }: { messages: UIMessage[] } = await req.json();
 
-  if (!userId && clientUserId) {
-    userId = clientUserId;
-  }
-
-  if (!userId) {
-    return Response.json({ error: 'Unauthorized - No user ID provided' }, { status: 401 });
-  }
-
-  const result = streamText({
+    const result = streamText({
     model: anthropic('claude-sonnet-4-20250514'),
     system: `You are a helpful financial assistant for Koffers, a personal finance management app.
 You help users understand their finances, answer questions about budgeting, spending, and financial planning.
@@ -200,5 +175,17 @@ Always use these tools when the user asks about their accounts, balances, transa
     },
   });
 
-  return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse();
+  } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.error('Error in chat:', error);
+    return Response.json(
+      { error: error.message || 'Chat request failed' },
+      { status: 500 }
+    );
+  }
 }

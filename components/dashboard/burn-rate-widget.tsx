@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
+import { databases } from '@/lib/appwrite-client';
+import { Query } from 'appwrite';
 
 interface Transaction {
   $id: string;
-  amount: number;
-  date: string;
+  rawData: string;
 }
 
 export function BurnRateWidget() {
@@ -20,23 +21,31 @@ export function BurnRateWidget() {
     const fetchBurnRate = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100`);
-        const data = await response.json();
 
-        if (data.success) {
-          // Calculate burn rate: average monthly spending over last 30 days
-          const now = new Date();
-          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        // Use Appwrite SDK directly
+        const response = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          'plaidTransactions',
+          [Query.limit(1000)]
+        );
 
-          const recentExpenses = data.transactions
-            .filter((t: Transaction) => {
-              const transactionDate = new Date(t.date);
-              return t.amount > 0 && transactionDate >= thirtyDaysAgo;
-            })
-            .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
+        // Calculate burn rate: average monthly spending over last 30 days
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-          setBurnRate(recentExpenses);
-        }
+        const recentExpenses = response.documents
+          .filter((t: any) => {
+            const data = JSON.parse(t.rawData);
+            const transactionDate = new Date(data.date);
+            const amount = data.amount || 0;
+            return amount > 0 && transactionDate >= thirtyDaysAgo;
+          })
+          .reduce((sum: number, t: any) => {
+            const data = JSON.parse(t.rawData);
+            return sum + (data.amount || 0);
+          }, 0);
+
+        setBurnRate(recentExpenses);
       } catch (err) {
         console.error('Error fetching burn rate:', err);
       } finally {

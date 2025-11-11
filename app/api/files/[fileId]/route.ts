@@ -1,22 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storage, databases, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
+import { validateSession } from '@/lib/auth-helpers';
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ fileId: string }> }
 ) {
   try {
-    const { fileId } = await params;
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'userId is required' },
-        { status: 400 }
-      );
-    }
+    const { fileId } = await params;
 
     // Get file metadata from database
     const fileDocs = await databases.listDocuments(
@@ -48,6 +43,11 @@ export async function PATCH(
 
     return NextResponse.json({ success: true, file: updated });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('File update error:', error);
     return NextResponse.json(
       { error: error.message || 'Update failed' },
@@ -61,16 +61,10 @@ export async function DELETE(
   { params }: { params: Promise<{ fileId: string }> }
 ) {
   try {
-    const { fileId } = await params;
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'userId is required' },
-        { status: 400 }
-      );
-    }
+    const { fileId } = await params;
 
     // Get file metadata from database
     const fileDocs = await databases.listDocuments(
@@ -101,6 +95,11 @@ export async function DELETE(
 
     return NextResponse.json({ success: true });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('File delete error:', error);
     return NextResponse.json(
       { error: error.message || 'Delete failed' },

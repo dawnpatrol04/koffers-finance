@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
+import { databases } from '@/lib/appwrite-client';
 
 interface Account {
   $id: string;
@@ -27,14 +28,15 @@ export function AccountsWidget() {
     const fetchAccounts = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/plaid/accounts?userId=${user.$id}`);
-        const data = await response.json();
 
-        if (data.success) {
-          setAccounts(data.accounts);
-        } else {
-          setError(data.error || 'Failed to fetch accounts');
-        }
+        // Use Appwrite SDK directly - automatically filtered by user session
+        const response = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          'accounts'
+        );
+
+        setAccounts(response.documents as any[]);
+        setError(null);
       } catch (err: any) {
         console.error('Error fetching accounts:', err);
         setError(err.message);

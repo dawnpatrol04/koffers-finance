@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { plaidClient, getCountryCodes } from '@/lib/plaid';
 import { databases, DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-server';
+import { validateSession } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
   try {
-    const { public_token, userId } = await request.json();
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
-    if (!public_token || !userId) {
+    const { public_token } = await request.json();
+
+    if (!public_token) {
       return NextResponse.json(
-        { error: 'public_token and userId are required' },
+        { error: 'public_token is required' },
         { status: 400 }
       );
     }
@@ -66,6 +70,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('Error exchanging token:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to exchange token' },

@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
+import { databases } from '@/lib/appwrite-client';
+import { Query } from 'appwrite';
 
 interface Transaction {
   $id: string;
-  amount: number;
-  date: string;
+  rawData: string;
 }
 
 interface Account {
@@ -26,35 +27,42 @@ export function RunwayWidget() {
       try {
         setLoading(true);
 
-        // Fetch both accounts and transactions
+        // Fetch both accounts and transactions using Appwrite SDK
         const [accountsRes, transactionsRes] = await Promise.all([
-          fetch(`/api/plaid/accounts?userId=${user.$id}`),
-          fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100`)
+          databases.listDocuments(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            'accounts'
+          ),
+          databases.listDocuments(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            'plaidTransactions',
+            [Query.limit(1000)]
+          )
         ]);
 
-        const accountsData = await accountsRes.json();
-        const transactionsData = await transactionsRes.json();
+        // Calculate total balance
+        const totalBalance = accountsRes.documents
+          .reduce((sum: number, account: any) => sum + (account.currentBalance || 0), 0);
 
-        if (accountsData.success && transactionsData.success) {
-          // Calculate total balance
-          const totalBalance = accountsData.accounts
-            .reduce((sum: number, account: Account) => sum + (account.currentBalance || 0), 0);
+        // Calculate monthly burn rate (last 30 days)
+        const now = new Date();
+        const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-          // Calculate monthly burn rate (last 30 days)
-          const now = new Date();
-          const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        const monthlyExpenses = transactionsRes.documents
+          .filter((t: any) => {
+            const data = JSON.parse(t.rawData);
+            const transactionDate = new Date(data.date);
+            const amount = data.amount || 0;
+            return amount > 0 && transactionDate >= thirtyDaysAgo;
+          })
+          .reduce((sum: number, t: any) => {
+            const data = JSON.parse(t.rawData);
+            return sum + (data.amount || 0);
+          }, 0);
 
-          const monthlyExpenses = transactionsData.transactions
-            .filter((t: Transaction) => {
-              const transactionDate = new Date(t.date);
-              return t.amount > 0 && transactionDate >= thirtyDaysAgo;
-            })
-            .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
-
-          // Calculate runway in months
-          const runwayMonths = monthlyExpenses > 0 ? totalBalance / monthlyExpenses : 0;
-          setRunway(runwayMonths);
-        }
+        // Calculate runway in months
+        const runwayMonths = monthlyExpenses > 0 ? totalBalance / monthlyExpenses : 0;
+        setRunway(runwayMonths);
       } catch (err) {
         console.error('Error fetching runway:', err);
       } finally {

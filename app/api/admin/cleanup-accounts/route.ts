@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
+import { requireAdmin } from '@/lib/auth-helpers';
 
 /**
  * ADMIN ENDPOINT - Delete all accounts and Plaid items for cleanup
@@ -8,6 +9,9 @@ import { Query } from 'node-appwrite';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Require admin authentication
+    const { userId: adminUserId } = await requireAdmin();
+
     const body = await request.json();
     const { userId, confirmDelete } = body;
 
@@ -103,6 +107,12 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
+      const status = error.message.includes('Forbidden') ? 403 : 401;
+      return NextResponse.json({ error: error.message }, { status });
+    }
+
     console.error('Error in cleanup:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to cleanup accounts' },

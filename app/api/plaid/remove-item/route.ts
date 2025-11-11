@@ -2,15 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { plaidClient } from '@/lib/plaid';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
+import { validateSession } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { itemId, userId, deleteTransactions = false } = body;
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
-    if (!itemId || !userId) {
+    const body = await request.json();
+    const { itemId, deleteTransactions = false } = body;
+
+    if (!itemId) {
       return NextResponse.json(
-        { error: 'itemId and userId are required' },
+        { error: 'itemId is required' },
         { status: 400 }
       );
     }
@@ -23,10 +27,10 @@ export async function POST(request: NextRequest) {
       itemId
     );
 
-    // Verify it belongs to this user
+    // Verify it belongs to this user (from session)
     if (plaidItem.userId !== userId) {
       return NextResponse.json(
-        { error: 'Unauthorized' },
+        { error: 'Unauthorized - This item does not belong to you' },
         { status: 403 }
       );
     }
@@ -90,6 +94,11 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('Error removing Plaid item:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to remove bank connection' },

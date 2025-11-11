@@ -3,17 +3,13 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
 import Link from 'next/link';
+import { databases } from '@/lib/appwrite-client';
+import { Query } from 'appwrite';
 
 interface Transaction {
   $id: string;
-  transactionId: string;
-  date: string;
-  name: string;
-  merchantName: string;
-  amount: number;
-  isoCurrencyCode: string;
-  pending: boolean;
-  category: string;
+  rawData: string;
+  plaidTransactionId: string;
 }
 
 export function TransactionsWidget() {
@@ -28,14 +24,16 @@ export function TransactionsWidget() {
     const fetchTransactions = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=5`);
-        const data = await response.json();
 
-        if (data.success) {
-          setTransactions(data.transactions);
-        } else {
-          setError(data.error || 'Failed to fetch transactions');
-        }
+        // Use Appwrite SDK directly - automatically filtered by user session
+        const response = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          'plaidTransactions',
+          [Query.limit(5)]
+        );
+
+        setTransactions(response.documents as any[]);
+        setError(null);
       } catch (err: any) {
         console.error('Error fetching transactions:', err);
         setError(err.message);
@@ -95,19 +93,22 @@ export function TransactionsWidget() {
       </div>
       <div className="space-y-3">
         {transactions.map((transaction) => {
-          const categories = transaction.category ? JSON.parse(transaction.category) : [];
-          const displayCategory = categories.length > 0 ? categories[0] : 'Uncategorized';
+          const data = JSON.parse(transaction.rawData);
+          const category = data.personal_finance_category?.primary || 'Uncategorized';
+          const merchantName = data.merchant_name || data.name || 'Unknown';
+          const amount = data.amount || 0;
+          const date = data.date || new Date().toISOString();
 
           return (
             <div key={transaction.$id} className="flex justify-between items-start">
               <div className="flex-1">
-                <div className="text-sm font-medium">{transaction.merchantName}</div>
+                <div className="text-sm font-medium">{merchantName}</div>
                 <div className="text-xs text-muted-foreground mt-1">
-                  {displayCategory} • {new Date(transaction.date).toLocaleDateString()}
+                  {category} • {new Date(date).toLocaleDateString()}
                 </div>
               </div>
-              <div className={`text-sm font-medium ${transaction.amount < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {transaction.amount < 0 ? '+' : '-'}${Math.abs(transaction.amount).toFixed(2)}
+              <div className={`text-sm font-medium ${amount < 0 ? 'text-green-600' : 'text-red-600'}`}>
+                {amount < 0 ? '+' : '-'}${Math.abs(amount).toFixed(2)}
               </div>
             </div>
           );

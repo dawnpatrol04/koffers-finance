@@ -2,12 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
+import { databases } from '@/lib/appwrite-client';
+import { Query } from 'appwrite';
 
 interface Transaction {
   $id: string;
-  amount: number;
-  date: string;
-  category: string;
+  rawData: string;
 }
 
 export function SpendingWidget() {
@@ -21,17 +21,26 @@ export function SpendingWidget() {
     const fetchSpending = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/plaid/transactions?userId=${user.$id}&limit=100`);
-        const data = await response.json();
 
-        if (data.success) {
-          // Calculate total spending (positive amounts only = expenses)
-          const spending = data.transactions
-            .filter((t: Transaction) => t.amount > 0)
-            .reduce((sum: number, t: Transaction) => sum + t.amount, 0);
+        // Use Appwrite SDK directly
+        const response = await databases.listDocuments(
+          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          'plaidTransactions',
+          [Query.limit(1000)]
+        );
 
-          setTotalSpending(spending);
-        }
+        // Calculate total spending (positive amounts only = expenses)
+        const spending = response.documents
+          .filter((t: any) => {
+            const data = JSON.parse(t.rawData);
+            return (data.amount || 0) > 0;
+          })
+          .reduce((sum: number, t: any) => {
+            const data = JSON.parse(t.rawData);
+            return sum + (data.amount || 0);
+          }, 0);
+
+        setTotalSpending(spending);
       } catch (err) {
         console.error('Error fetching spending:', err);
       } finally {

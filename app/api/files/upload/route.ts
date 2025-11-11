@@ -4,18 +4,12 @@ import { InputFile } from 'node-appwrite/file';
 import sharp from 'sharp';
 import { fileTypeFromBuffer } from 'file-type';
 import heicConvert from 'heic-convert';
+import { validateSession } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json(
-        { error: 'userId is required' },
-        { status: 400 }
-      );
-    }
+    // Validate session and get userId securely
+    const { userId } = await validateSession();
 
     // Get form data
     const formData = await request.formData();
@@ -106,6 +100,11 @@ export async function POST(request: NextRequest) {
       metadata: fileDoc,
     });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     console.error('File upload error:', error);
     return NextResponse.json(
       { error: error.message || 'Upload failed' },

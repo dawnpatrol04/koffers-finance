@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { requireAdmin } from '@/lib/auth-helpers';
 
 /**
  * ADMIN ENDPOINT - Delete specific documents by ID
@@ -7,6 +8,9 @@ import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
  */
 export async function POST(request: NextRequest) {
   try {
+    // Require admin authentication
+    await requireAdmin();
+
     const body = await request.json();
     const { accountIds, plaidItemIds, confirmDelete } = body;
 
@@ -61,6 +65,12 @@ export async function POST(request: NextRequest) {
       results,
     });
   } catch (error: any) {
+    // Handle authentication errors
+    if (error.message?.includes('Unauthorized') || error.message?.includes('Forbidden')) {
+      const status = error.message.includes('Forbidden') ? 403 : 401;
+      return NextResponse.json({ error: error.message }, { status });
+    }
+
     console.error('Error in delete-by-id:', error);
     return NextResponse.json(
       { error: error.message || 'Failed to delete records' },
