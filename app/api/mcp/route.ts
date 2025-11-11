@@ -700,13 +700,13 @@ export async function POST(request: NextRequest) {
           case 'refresh_transactions':
             // Call the fetch-data API endpoint internally
             const fetchUrl = new URL('/api/plaid/fetch-data', request.url);
-            fetchUrl.searchParams.set('userId', userId);
 
             const fetchResponse = await fetch(fetchUrl.toString(), {
               method: 'POST',
               headers: {
                 'Content-Type': 'application/json'
-              }
+              },
+              body: JSON.stringify({ userId })
             });
 
             if (!fetchResponse.ok) {
