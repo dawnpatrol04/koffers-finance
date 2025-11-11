@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { FileCard } from "@/components/file-card"
 import { FileList } from "@/components/file-list"
 import { ImageModal } from "@/components/image-modal"
-import type { FileDocument } from "@/types/file"
+import type { FileDocument, ReceiptMatchStatus } from "@/types/file"
 import Link from "next/link"
 import { useUser } from "@/contexts/user-context"
 import { useEffect, useCallback } from "react"
@@ -26,15 +26,42 @@ export default function FilesPage() {
     if (!user) return
 
     try {
-      // Use Appwrite SDK directly - automatically filtered by user session
+      // Query files for the current logged-in user only
       const response = await databases.listDocuments(
         process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
         'files',
         [
+          Query.equal('userId', user.$id),
           Query.orderDesc('createdAt'),
           Query.limit(100)
         ]
       )
+
+      // Get transaction IDs to fetch merchant/amount info
+      const transactionIds = response.documents
+        .map((f: any) => f.transactionId)
+        .filter(Boolean)
+
+      // Fetch transactions for linked files
+      let transactionsMap = new Map<string, any>()
+      if (transactionIds.length > 0) {
+        try {
+          const txnResponse = await databases.listDocuments(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            'plaidTransactions',
+            [Query.limit(1000)]
+          )
+          txnResponse.documents.forEach((txn: any) => {
+            const data = JSON.parse(txn.rawData)
+            transactionsMap.set(txn.$id, {
+              merchant: data.merchant_name || data.name,
+              amount: data.amount,
+            })
+          })
+        } catch (err) {
+          console.error('Error fetching transactions:', err)
+        }
+      }
 
       // Map API files to FileDocument type
       const mappedFiles: FileDocument[] = response.documents.map((file: any) => {
@@ -46,15 +73,32 @@ export default function FilesPage() {
             ? `/api/files/preview/${file.fileId}`
             : undefined
 
+          // Determine match status based on transactionId and ocrStatus
+          let matchStatus: ReceiptMatchStatus | undefined
+          if (file.transactionId) {
+            matchStatus = 'matched'
+          } else if (file.ocrStatus === 'pending') {
+            matchStatus = 'pending'
+          } else if (file.ocrStatus === 'completed' || file.ocrStatus === 'failed') {
+            matchStatus = 'unmatched'
+          }
+
+          // Get transaction data if linked
+          const txnData = file.transactionId ? transactionsMap.get(file.transactionId) : null
+
           return {
             id: file.fileId, // Use fileId (storage ID) as the primary ID for delete operations
             name: file.fileName,
-            type: file.ocrStatus === 'completed' ? 'receipt' : 'image',
+            type: file.ocrStatus === 'completed' ? 'receipt' : 'other',
             size: file.fileSize,
             uploadedAt: new Date(file.createdAt).toLocaleDateString('en-US'),
-            isReceipt: file.ocrStatus === 'completed', // Only treat as receipt after OCR
-            // Receipt data only exists after OCR processing
-            matchStatus: file.ocrStatus === 'completed' ? undefined : null,
+            isReceipt: !!file.transactionId || file.ocrStatus === 'completed',
+            matchStatus,
+            transactionId: file.transactionId,
+            receiptData: txnData ? {
+              merchant: txnData.merchant,
+              total: txnData.amount,
+            } : undefined,
             thumbnailUrl,
           }
         })

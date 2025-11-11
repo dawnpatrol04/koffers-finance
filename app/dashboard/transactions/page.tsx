@@ -117,15 +117,18 @@ function TransactionsContent() {
       try {
         setLoading(true);
 
-        // Build Appwrite queries
-        const queries = [Query.limit(100)];
+        // Build Appwrite queries - MUST filter by userId for security
+        const queries = [
+          Query.equal('userId', user.$id),
+          Query.limit(100)
+        ];
 
         // Add search if provided
         if (debouncedSearch) {
           queries.push(Query.search('merchantName', debouncedSearch));
         }
 
-        // Use Appwrite SDK directly - automatically filtered by user session
+        // Query transactions for current user only
         const response = await databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
           'plaidTransactions',
@@ -142,7 +145,10 @@ function TransactionsContent() {
             const filesResponse = await databases.listDocuments(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
               'files',
-              [Query.limit(1000)] // Get all files for this user
+              [
+                Query.equal('userId', user.$id),
+                Query.limit(1000)
+              ]
             );
             // Create map of transactionId -> has files
             filesResponse.documents.forEach((file: any) => {
@@ -152,6 +158,40 @@ function TransactionsContent() {
             });
           } catch (err) {
             console.error('Error fetching files:', err);
+          }
+        }
+
+        // Query receiptItems collection to get line items for transactions
+        let receiptItemsMap = new Map<string, any[]>();
+        if (txnIds.length > 0) {
+          try {
+            const itemsResponse = await databases.listDocuments(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              'receiptItems',
+              [
+                Query.equal('userId', user.$id),
+                Query.limit(1000)
+              ]
+            );
+            // Group items by transactionId
+            itemsResponse.documents.forEach((item: any) => {
+              if (item.transactionId) {
+                if (!receiptItemsMap.has(item.transactionId)) {
+                  receiptItemsMap.set(item.transactionId, []);
+                }
+                receiptItemsMap.get(item.transactionId)?.push({
+                  id: item.$id,
+                  name: item.name,
+                  quantity: item.quantity,
+                  price: item.price,
+                  totalPrice: item.totalPrice,
+                  category: item.category,
+                  tags: item.tags || [],
+                });
+              }
+            });
+          } catch (err) {
+            console.error('Error fetching receipt items:', err);
           }
         }
 
@@ -195,6 +235,7 @@ function TransactionsContent() {
                 message: t.reminderMessage,
                 completed: t.reminderCompleted || false,
               } : undefined,
+              receiptItems: receiptItemsMap.get(t.$id) || undefined,
             } as Transaction;
           });
 
@@ -219,8 +260,9 @@ function TransactionsContent() {
     try {
       setLoadingMore(true);
 
-      // Build Appwrite queries with offset
+      // Build Appwrite queries with offset - MUST filter by userId
       const queries = [
+        Query.equal('userId', user.$id),
         Query.limit(100),
         Query.offset(transactions.length)
       ];
@@ -255,6 +297,36 @@ function TransactionsContent() {
           });
         } catch (err) {
           console.error('Error fetching files:', err);
+        }
+      }
+
+      // Query receiptItems collection
+      let receiptItemsMap = new Map<string, any[]>();
+      if (txnIds.length > 0) {
+        try {
+          const itemsResponse = await databases.listDocuments(
+            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            'receiptItems',
+            [Query.limit(1000)]
+          );
+          itemsResponse.documents.forEach((item: any) => {
+            if (item.transactionId) {
+              if (!receiptItemsMap.has(item.transactionId)) {
+                receiptItemsMap.set(item.transactionId, []);
+              }
+              receiptItemsMap.get(item.transactionId)?.push({
+                id: item.$id,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                totalPrice: item.totalPrice,
+                category: item.category,
+                tags: item.tags || [],
+              });
+            }
+          });
+        } catch (err) {
+          console.error('Error fetching receipt items:', err);
         }
       }
 
@@ -327,7 +399,10 @@ function TransactionsContent() {
         const txnResponse = await databases.listDocuments(
           process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
           'plaidTransactions',
-          [Query.limit(100)]
+          [
+            Query.equal('userId', user.$id),
+            Query.limit(100)
+          ]
         );
 
         // Get transaction IDs to query for files
@@ -340,7 +415,10 @@ function TransactionsContent() {
             const filesResponse = await databases.listDocuments(
               process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
               'files',
-              [Query.limit(1000)]
+              [
+                Query.equal('userId', user.$id),
+                Query.limit(1000)
+              ]
             );
             filesResponse.documents.forEach((file: any) => {
               if (file.transactionId) {
@@ -349,6 +427,36 @@ function TransactionsContent() {
             });
           } catch (err) {
             console.error('Error fetching files:', err);
+          }
+        }
+
+        // Query receiptItems collection
+        let receiptItemsMap = new Map<string, any[]>();
+        if (txnIds.length > 0) {
+          try {
+            const itemsResponse = await databases.listDocuments(
+              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              'receiptItems',
+              [Query.limit(1000)]
+            );
+            itemsResponse.documents.forEach((item: any) => {
+              if (item.transactionId) {
+                if (!receiptItemsMap.has(item.transactionId)) {
+                  receiptItemsMap.set(item.transactionId, []);
+                }
+                receiptItemsMap.get(item.transactionId)?.push({
+                  id: item.$id,
+                  name: item.name,
+                  quantity: item.quantity,
+                  price: item.price,
+                  totalPrice: item.totalPrice,
+                  category: item.category,
+                  tags: item.tags || [],
+                });
+              }
+            });
+          } catch (err) {
+            console.error('Error fetching receipt items:', err);
           }
         }
 
@@ -390,6 +498,7 @@ function TransactionsContent() {
                 message: t.reminderMessage,
                 completed: t.reminderCompleted || false,
               } : undefined,
+              receiptItems: receiptItemsMap.get(t.$id) || undefined,
             } as Transaction;
           });
 

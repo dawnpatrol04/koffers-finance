@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, storage, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { databases, storage, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-server';
 import { Query, ID } from 'node-appwrite';
+import { InputFile } from 'node-appwrite/file';
+import heicConvert from 'heic-convert';
+import { fileTypeFromBuffer } from 'file-type';
 
 /**
  * MCP (Model Context Protocol) Server Endpoint
@@ -306,6 +309,24 @@ export async function POST(request: NextRequest) {
                 type: 'object',
                 properties: {},
                 required: []
+              }
+            },
+            {
+              name: 'upload_file',
+              description: 'Upload a file/receipt from local filesystem to Koffers storage. Accepts images (JPEG, PNG, HEIC) and PDFs. HEIC files are automatically converted to JPEG. Returns fileId for use with other tools.',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  filePath: {
+                    type: 'string',
+                    description: 'Absolute path to the file to upload (e.g., /Users/username/Downloads/receipt.jpg)'
+                  },
+                  fileName: {
+                    type: 'string',
+                    description: 'Optional custom filename (defaults to original filename)'
+                  }
+                },
+                required: ['filePath']
               }
             }
           ]
@@ -793,6 +814,95 @@ export async function POST(request: NextRequest) {
                     jobId: refreshData.jobId,
                     statusUrl: `/api/plaid/sync-status?userId=${userId}&jobId=${refreshData.jobId}`,
                     instructions: 'Check sync status by visiting the status URL or wait a moment and check your transaction count'
+                  }, null, 2)
+                }]
+              }
+            });
+
+          case 'upload_file':
+            const { filePath, fileName: customFileName } = toolArgs;
+
+            if (!filePath) {
+              throw new Error('filePath is required');
+            }
+
+            // Read file from filesystem
+            const fs = await import('fs/promises');
+            const path = await import('path');
+
+            let buffer = await fs.readFile(filePath);
+            const originalFileName = path.basename(filePath);
+            const fileStats = await fs.stat(filePath);
+
+            // Check file size (20MB limit)
+            const maxSize = 20 * 1024 * 1024;
+            if (fileStats.size > maxSize) {
+              throw new Error('File too large. Maximum size is 20MB');
+            }
+
+            // Detect file type
+            const detectedType = await fileTypeFromBuffer(buffer);
+            let finalMimeType = detectedType?.mime || 'application/octet-stream';
+            let finalFileName = customFileName || originalFileName;
+            let finalBuffer = buffer;
+
+            // Convert HEIC to JPEG
+            if (detectedType?.mime === 'image/heic' || detectedType?.mime === 'image/heif') {
+              console.log('Converting HEIC to JPEG...');
+
+              const outputBuffer = await heicConvert({
+                buffer: buffer,
+                format: 'JPEG',
+                quality: 0.9
+              });
+
+              finalBuffer = Buffer.from(outputBuffer);
+              finalMimeType = 'image/jpeg';
+              finalFileName = finalFileName.replace(/\.(heic|heif)$/i, '.jpg');
+
+              console.log(`Converted ${buffer.length} bytes → ${finalBuffer.length} bytes`);
+            }
+
+            // Upload to Appwrite Storage
+            const uploadedFile = await storage.createFile(
+              STORAGE_BUCKETS.FILES,
+              ID.unique(),
+              InputFile.fromBuffer(finalBuffer, finalFileName),
+              [`read("user:${userId}")`, `delete("user:${userId}")`]
+            );
+
+            console.log(`Uploaded to storage: ${uploadedFile.$id}`);
+
+            // Create file metadata in database
+            const fileDoc = await databases.createDocument(
+              DATABASE_ID,
+              COLLECTIONS.FILES,
+              ID.unique(),
+              {
+                userId,
+                fileId: uploadedFile.$id,
+                fileName: finalFileName,
+                mimeType: finalMimeType,
+                fileSize: finalBuffer.length,
+                ocrStatus: 'pending',
+                createdAt: new Date().toISOString(),
+              }
+            );
+
+            return NextResponse.json({
+              jsonrpc: '2.0',
+              id: body.id,
+              result: {
+                content: [{
+                  type: 'text',
+                  text: JSON.stringify({
+                    success: true,
+                    fileId: uploadedFile.$id,
+                    documentId: fileDoc.$id,
+                    fileName: finalFileName,
+                    mimeType: finalMimeType,
+                    fileSize: finalBuffer.length,
+                    message: `Successfully uploaded ${finalFileName} (${Math.round(finalBuffer.length / 1024)} KB)`
                   }, null, 2)
                 }]
               }
