@@ -169,11 +169,13 @@ export function ConnectedAccounts() {
     );
   }
 
-  // Group accounts by institution
+  // Group accounts by Plaid Item (each connection is a separate item)
+  // Use plaidItemDocId instead of itemId to properly separate duplicate connections
   const accountsByInstitution = new Map<string, PlaidAccount[]>();
   accounts.forEach((account) => {
-    const existing = accountsByInstitution.get(account.itemId) || [];
-    accountsByInstitution.set(account.itemId, [...existing, account]);
+    const key = account.plaidItemDocId || account.itemId; // Fallback to itemId if plaidItemDocId is null
+    const existing = accountsByInstitution.get(key) || [];
+    accountsByInstitution.set(key, [...existing, account]);
   });
 
   return (
