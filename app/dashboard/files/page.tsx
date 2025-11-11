@@ -12,6 +12,7 @@ import { useUser } from "@/contexts/user-context"
 import { useEffect, useCallback } from "react"
 import { databases } from "@/lib/appwrite-client"
 import { Query } from "appwrite"
+import { DATABASE_ID } from '@/lib/config'
 
 export default function FilesPage() {
   const { user } = useUser()
@@ -28,7 +29,7 @@ export default function FilesPage() {
     try {
       // Query files for the current logged-in user only
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+        DATABASE_ID,
         'files',
         [
           Query.equal('userId', user.$id),
@@ -47,7 +48,7 @@ export default function FilesPage() {
       if (transactionIds.length > 0) {
         try {
           const txnResponse = await databases.listDocuments(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            DATABASE_ID,
             'plaidTransactions',
             [Query.limit(1000)]
           )

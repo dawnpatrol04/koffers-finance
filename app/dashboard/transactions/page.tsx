@@ -14,6 +14,7 @@ import { Plus, Search, ArrowLeft, RefreshCw, ArrowUpDown } from 'lucide-react';
 import type { Transaction } from '@/types/transaction';
 import { databases } from '@/lib/appwrite-client';
 import { Query } from 'appwrite';
+import { DATABASE_ID } from '@/lib/config';
 
 interface ApiTransaction {
   $id: string;
@@ -130,7 +131,7 @@ function TransactionsContent() {
 
         // Query transactions for current user only
         const response = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          DATABASE_ID,
           'plaidTransactions',
           queries
         );
@@ -143,7 +144,7 @@ function TransactionsContent() {
         if (txnIds.length > 0) {
           try {
             const filesResponse = await databases.listDocuments(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              DATABASE_ID,
               'files',
               [
                 Query.equal('userId', user.$id),
@@ -166,7 +167,7 @@ function TransactionsContent() {
         if (txnIds.length > 0) {
           try {
             const itemsResponse = await databases.listDocuments(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              DATABASE_ID,
               'receiptItems',
               [
                 Query.equal('userId', user.$id),
@@ -273,7 +274,7 @@ function TransactionsContent() {
       }
 
       const response = await databases.listDocuments(
-        process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+        DATABASE_ID,
         'plaidTransactions',
         queries
       );
@@ -286,7 +287,7 @@ function TransactionsContent() {
       if (txnIds.length > 0) {
         try {
           const filesResponse = await databases.listDocuments(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            DATABASE_ID,
             'files',
             [Query.limit(1000)]
           );
@@ -305,7 +306,7 @@ function TransactionsContent() {
       if (txnIds.length > 0) {
         try {
           const itemsResponse = await databases.listDocuments(
-            process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+            DATABASE_ID,
             'receiptItems',
             [Query.limit(1000)]
           );
@@ -397,7 +398,7 @@ function TransactionsContent() {
       if (data.success) {
         // Refetch transactions to get the latest using Appwrite SDK
         const txnResponse = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          DATABASE_ID,
           'plaidTransactions',
           [
             Query.equal('userId', user.$id),
@@ -413,7 +414,7 @@ function TransactionsContent() {
         if (txnIds.length > 0) {
           try {
             const filesResponse = await databases.listDocuments(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              DATABASE_ID,
               'files',
               [
                 Query.equal('userId', user.$id),
@@ -435,7 +436,7 @@ function TransactionsContent() {
         if (txnIds.length > 0) {
           try {
             const itemsResponse = await databases.listDocuments(
-              process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+              DATABASE_ID,
               'receiptItems',
               [Query.limit(1000)]
             );

@@ -7,6 +7,7 @@ import { Client, Databases, Permission, Role, IndexType } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
+import { DATABASE_ID } from '../lib/config.js';
 
 // Get __dirname equivalent in ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -22,7 +23,6 @@ const client = new Client()
 
 const databases = new Databases(client);
 
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc';
 const COLLECTION_ID = 'apiKeys';
 
 async function createCollection() {

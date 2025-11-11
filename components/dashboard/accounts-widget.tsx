@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
 import { databases } from '@/lib/appwrite-client';
+import { DATABASE_ID } from '@/lib/config';
 
 interface Account {
   $id: string;
@@ -31,7 +32,7 @@ export function AccountsWidget() {
 
         // Use Appwrite SDK directly - automatically filtered by user session
         const response = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          DATABASE_ID,
           'accounts'
         );
 

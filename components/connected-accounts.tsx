@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { PlaidLink } from "@/components/plaid/plaid-link";
 import { useUser } from "@/contexts/user-context";
 import { databases } from "@/lib/appwrite-client";
+import { DATABASE_ID } from '@/lib/config';
 
 interface PlaidAccount {
   $id: string;
@@ -65,7 +66,7 @@ export function ConnectedAccounts() {
 
         // Use Appwrite SDK directly
         const response = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          DATABASE_ID,
           'accounts'
         );
 

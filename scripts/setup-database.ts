@@ -7,6 +7,7 @@
 import { Client, Databases, ID, Permission, Role } from 'node-appwrite';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { DATABASE_ID } from '../lib/config.js';
 
 // Load environment variables
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -14,7 +15,6 @@ dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 const ENDPOINT = process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!;
 const PROJECT_ID = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
 const API_KEY = process.env.APPWRITE_API_KEY!;
-const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc';
 
 if (!ENDPOINT || !PROJECT_ID || !API_KEY) {
   console.error('❌ Missing required environment variables');

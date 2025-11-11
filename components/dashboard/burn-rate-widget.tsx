@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useUser } from '@/contexts/user-context';
 import { databases } from '@/lib/appwrite-client';
 import { Query } from 'appwrite';
+import { DATABASE_ID } from '@/lib/config';
 
 interface Transaction {
   $id: string;
@@ -24,7 +25,7 @@ export function BurnRateWidget() {
 
         // Use Appwrite SDK directly
         const response = await databases.listDocuments(
-          process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc',
+          DATABASE_ID,
           'plaidTransactions',
           [Query.limit(1000)]
         );
