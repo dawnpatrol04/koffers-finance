@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import { validateSession } from '@/lib/auth-helpers';
+import * as accountsData from '@/lib/data/accounts';
+import * as transactionsData from '@/lib/data/transactions';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
@@ -34,28 +36,22 @@ Always use these tools when the user asks about their accounts, balances, transa
         description: 'Get all connected bank accounts with current balances',
         inputSchema: z.object({}),
         execute: async () => {
-          const accountsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.PLAID_ACCOUNTS,
-            [Query.equal('userId', userId)]
-          );
+          // Use shared business logic
+          const summary = await accountsData.getAccountsSummary(userId);
 
           return {
-            accounts: accountsResponse.documents.map((doc: any) => ({
-              id: doc.$id,
-              name: doc.name,
-              officialName: doc.officialName,
-              type: doc.type,
-              subtype: doc.subtype,
-              currentBalance: doc.balances?.current || 0,
-              availableBalance: doc.balances?.available || 0,
-              currency: doc.balances?.isoCurrencyCode || 'USD',
-              mask: doc.mask,
+            accounts: summary.accounts.map(acc => ({
+              id: acc.id,
+              name: acc.name,
+              type: acc.type,
+              subtype: acc.subtype,
+              currentBalance: acc.currentBalance,
+              availableBalance: acc.availableBalance,
+              currency: acc.currency,
+              mask: acc.mask,
+              institutionName: acc.institutionName,
             })),
-            totalBalance: accountsResponse.documents.reduce(
-              (sum: number, doc: any) => sum + (doc.balances?.current || 0),
-              0
-            ),
+            totalBalance: summary.totalBalance,
           };
         },
       }),
@@ -65,29 +61,21 @@ Always use these tools when the user asks about their accounts, balances, transa
           limit: z.number().min(1).max(100).default(20).optional(),
         }),
         execute: async ({ limit = 20 }) => {
-          const transactionsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.PLAID_TRANSACTIONS,
-            [
-              Query.equal('userId', userId),
-              Query.orderDesc('date'),
-              Query.limit(limit),
-            ]
-          );
+          // Use shared business logic
+          const transactions = await transactionsData.getTransactions(userId, { limit });
 
           return {
-            transactions: transactionsResponse.documents.map((doc: any) => ({
-              id: doc.$id,
-              date: doc.date,
-              name: doc.name,
-              merchantName: doc.merchantName,
-              amount: doc.amount,
-              currency: doc.isoCurrencyCode || 'USD',
-              category: typeof doc.category === 'string' ? JSON.parse(doc.category) : doc.category,
-              accountName: doc.accountName,
-              pending: doc.pending || false,
+            transactions: transactions.map(txn => ({
+              id: txn.id,
+              date: txn.date,
+              name: txn.name,
+              merchantName: txn.merchantName,
+              amount: txn.amount,
+              currency: txn.currency,
+              category: txn.category,
+              pending: txn.pending,
             })),
-            count: transactionsResponse.documents.length,
+            count: transactions.length,
           };
         },
       }),
@@ -100,49 +88,42 @@ Always use these tools when the user asks about their accounts, balances, transa
           limit: z.number().min(1).max(100).default(20).optional(),
         }),
         execute: async ({ merchantName, minAmount, maxAmount, limit = 20 }) => {
-          const queries = [
-            Query.equal('userId', userId),
-            Query.orderDesc('date'),
-            Query.limit(limit),
-          ];
+          // Use shared business logic with appropriate filters
+          // Note: This Chat tool has a different interface than MCP search_transactions
+          const transactions = await transactionsData.getTransactions(userId, { limit: 500 });
 
-          // Note: Appwrite's search is limited, so we'll fetch and filter
-          const transactionsResponse = await databases.listDocuments(
-            DATABASE_ID,
-            COLLECTIONS.PLAID_TRANSACTIONS,
-            queries
-          );
-
-          let results = transactionsResponse.documents;
+          let results = transactions;
 
           // Filter by merchant name (case-insensitive)
           if (merchantName) {
             const searchLower = merchantName.toLowerCase();
-            results = results.filter((doc: any) =>
-              (doc.merchantName?.toLowerCase() || '').includes(searchLower) ||
-              (doc.name?.toLowerCase() || '').includes(searchLower)
+            results = results.filter(txn =>
+              (txn.merchantName?.toLowerCase() || '').includes(searchLower) ||
+              (txn.name?.toLowerCase() || '').includes(searchLower)
             );
           }
 
           // Filter by amount range
           if (minAmount !== undefined) {
-            results = results.filter((doc: any) => doc.amount >= minAmount);
+            results = results.filter(txn => txn.amount >= minAmount);
           }
           if (maxAmount !== undefined) {
-            results = results.filter((doc: any) => doc.amount <= maxAmount);
+            results = results.filter(txn => txn.amount <= maxAmount);
           }
 
+          // Limit results
+          results = results.slice(0, limit);
+
           return {
-            transactions: results.map((doc: any) => ({
-              id: doc.$id,
-              date: doc.date,
-              name: doc.name,
-              merchantName: doc.merchantName,
-              amount: doc.amount,
-              currency: doc.isoCurrencyCode || 'USD',
-              category: typeof doc.category === 'string' ? JSON.parse(doc.category) : doc.category,
-              accountName: doc.accountName,
-              pending: doc.pending || false,
+            transactions: results.map(txn => ({
+              id: txn.id,
+              date: txn.date,
+              name: txn.name,
+              merchantName: txn.merchantName,
+              amount: txn.amount,
+              currency: txn.currency,
+              category: txn.category,
+              pending: txn.pending,
             })),
             count: results.length,
           };
@@ -154,21 +135,18 @@ Always use these tools when the user asks about their accounts, balances, transa
           accountId: z.string().describe('The account ID to get balance for'),
         }),
         execute: async ({ accountId }) => {
-          const account = await databases.getDocument(
-            DATABASE_ID,
-            COLLECTIONS.PLAID_ACCOUNTS,
-            accountId
-          );
+          // Use shared business logic
+          const account = await accountsData.getAccountById(userId, accountId);
 
           return {
             name: account.name,
-            officialName: account.officialName,
             type: account.type,
             subtype: account.subtype,
-            currentBalance: account.balances?.current || 0,
-            availableBalance: account.balances?.available || 0,
-            currency: account.balances?.isoCurrencyCode || 'USD',
+            currentBalance: account.currentBalance,
+            availableBalance: account.availableBalance,
+            currency: account.currency,
             mask: account.mask,
+            institutionName: account.institutionName,
           };
         },
       }),
