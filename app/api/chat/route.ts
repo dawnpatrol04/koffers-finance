@@ -15,7 +15,9 @@ export const maxDuration = 30;
 export async function POST(req: Request) {
   try {
     // Validate session and get userId securely
+    console.log('[Chat API] Validating session...');
     const { userId } = await validateSession();
+    console.log('[Chat API] Session validated for user:', userId);
 
     const { messages }: { messages: UIMessage[] } = await req.json();
 
@@ -274,8 +276,9 @@ Always use these tools when the user asks about accounts, transactions, spending
     return result.toUIMessageStreamResponse();
   } catch (error: any) {
     // Handle authentication errors
+    console.error('[Chat API] Error:', error.message, error);
     if (error.message?.includes('Unauthorized')) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 });
+      return Response.json({ error: 'Unauthorized: ' + error.message }, { status: 401 });
     }
 
     console.error('Error in chat:', error);

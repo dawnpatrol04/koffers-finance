@@ -6,15 +6,22 @@ import { Client, Account } from 'node-appwrite';
  * Use in API routes that need authentication
  */
 export async function validateSession() {
+  console.log('[validateSession] Starting validation...');
   const cookieStore = await cookies();
+  const allCookies = cookieStore.getAll();
+  console.log('[validateSession] All cookies:', allCookies.map(c => c.name));
 
   // Appwrite session cookie format: a_session_{projectId}
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
+  console.log('[validateSession] Looking for cookie: a_session_' + projectId);
   const sessionCookie = cookieStore.get(`a_session_${projectId}`);
 
   if (!sessionCookie) {
+    console.error('[validateSession] No session cookie found!');
     throw new Error('Unauthorized - No session');
   }
+
+  console.log('[validateSession] Session cookie found');
 
   // Create session client
   const client = new Client()
