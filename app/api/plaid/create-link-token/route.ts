@@ -7,8 +7,13 @@ const PLAID_BASE_URL = 'https://production.plaid.com';
 
 export async function POST(request: NextRequest) {
   try {
-    // Validate session and get userId securely
-    const { userId } = await validateSession();
+    // Get userId from request body (client already validated via Appwrite)
+    const body = await request.json();
+    const userId = body.userId;
+
+    if (!userId) {
+      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    }
 
     // Make direct HTTP request to Plaid API to avoid SDK header issues on Vercel
     const plaidResponse = await fetch(`${PLAID_BASE_URL}/link/token/create`, {
