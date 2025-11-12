@@ -90,38 +90,39 @@ export default function ChatPage() {
                   );
                 }
 
-                // Render tool invocations
-                if (part.type === 'tool-invocation') {
-                  const toolInvocation = part.toolInvocation;
+                // Render tool invocations - AI SDK v5 uses specific tool names
+                // Tool types: tool-getAccounts, tool-getRecentTransactions, tool-searchTransactions, etc.
+                if (part.type.startsWith('tool-')) {
+                  const toolName = part.type.replace('tool-', '');
 
                   // Show tool execution state
-                  if (toolInvocation.state === 'input-streaming' || toolInvocation.state === 'input-available') {
+                  if (part.state === 'input-streaming' || part.state === 'input-available') {
                     return (
                       <div key={index} className="text-sm text-muted-foreground italic my-2">
-                        🔄 Calling {toolInvocation.toolName}...
+                        🔄 Calling {toolName}...
                       </div>
                     );
                   }
 
                   // Show tool results
-                  if (toolInvocation.state === 'output-available') {
+                  if (part.state === 'output-available') {
                     return (
                       <div key={index} className="text-sm my-2">
                         <div className="font-medium text-muted-foreground mb-1">
-                          📊 {toolInvocation.toolName}
+                          📊 {toolName}
                         </div>
                         <pre className="bg-background/50 rounded p-2 text-xs overflow-x-auto">
-                          {JSON.stringify(toolInvocation.result, null, 2)}
+                          {JSON.stringify(part.output, null, 2)}
                         </pre>
                       </div>
                     );
                   }
 
                   // Show errors
-                  if (toolInvocation.state === 'output-error') {
+                  if (part.state === 'output-error') {
                     return (
                       <div key={index} className="text-sm text-red-500 my-2">
-                        ❌ Error calling {toolInvocation.toolName}: {toolInvocation.errorText}
+                        ❌ Error calling {toolName}: {part.errorText}
                       </div>
                     );
                   }
