@@ -10,19 +10,20 @@ export async function validateSession(req?: Request) {
   console.log('[validateSession] Starting validation...');
 
   const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
-  let sessionToken: string | null = null;
+  let jwtToken: string | null = null;
+  let sessionCookieValue: string | null = null;
 
   // Try JWT from Authorization header first (for client-side requests)
   if (req) {
     const authHeader = req.headers.get('Authorization');
     if (authHeader?.startsWith('Bearer ')) {
-      sessionToken = authHeader.substring(7);
+      jwtToken = authHeader.substring(7);
       console.log('[validateSession] Using JWT from Authorization header');
     }
   }
 
   // Fall back to cookies (for server-side requests)
-  if (!sessionToken) {
+  if (!jwtToken) {
     const cookieStore = await cookies();
     const allCookies = cookieStore.getAll();
     console.log('[validateSession] All cookies:', allCookies.map(c => c.name));
@@ -30,12 +31,12 @@ export async function validateSession(req?: Request) {
 
     const sessionCookie = cookieStore.get(`a_session_${projectId}`);
     if (sessionCookie) {
-      sessionToken = sessionCookie.value;
+      sessionCookieValue = sessionCookie.value;
       console.log('[validateSession] Using session from cookie');
     }
   }
 
-  if (!sessionToken) {
+  if (!jwtToken && !sessionCookieValue) {
     console.error('[validateSession] No session found (no cookie or JWT)');
     throw new Error('Unauthorized - No session');
   }
@@ -43,8 +44,14 @@ export async function validateSession(req?: Request) {
   // Create session client
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-    .setProject(projectId)
-    .setJWT(sessionToken); // setJWT works for both session cookies and JWTs
+    .setProject(projectId);
+
+  // Use appropriate auth method
+  if (jwtToken) {
+    client.setJWT(jwtToken);  // For JWT tokens from Authorization header
+  } else if (sessionCookieValue) {
+    client.setSession(sessionCookieValue);  // For session cookies
+  }
 
   const account = new Account(client);
 
