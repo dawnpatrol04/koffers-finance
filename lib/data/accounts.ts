@@ -4,7 +4,7 @@
  */
 
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
-import { databases } from '@/lib/appwrite-server';
+import { createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import type { Account } from './types';
 
@@ -14,6 +14,7 @@ import type { Account } from './types';
  * @returns Array of accounts with balances
  */
 export async function getAccounts(userId: string): Promise<Account[]> {
+  const { databases } = await createSessionClient();
   const response = await databases.listDocuments(
     DATABASE_ID,
     COLLECTIONS.ACCOUNTS,
@@ -55,6 +56,7 @@ export async function getAccountById(
   userId: string,
   accountId: string
 ): Promise<Account> {
+  const { databases } = await createSessionClient();
   const account = await databases.getDocument(
     DATABASE_ID,
     COLLECTIONS.ACCOUNTS,

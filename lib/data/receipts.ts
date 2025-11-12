@@ -4,7 +4,7 @@
  */
 
 import { DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-config';
-import { databases } from '@/lib/appwrite-server';
+import { createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 
 export interface ReceiptItem {
@@ -46,6 +46,7 @@ export async function saveReceiptItems(
   items: ReceiptItem[],
   fileId?: string
 ): Promise<SaveReceiptItemsResult> {
+  const { databases } = await createSessionClient();
   if (!items || items.length === 0) {
     throw new Error('items array cannot be empty');
   }
@@ -99,6 +100,7 @@ export async function getReceiptItemsByTransaction(
   userId: string,
   transactionId: string
 ): Promise<ReceiptItemRecord[]> {
+  const { databases } = await createSessionClient();
   const response = await databases.listDocuments(
     DATABASE_ID,
     COLLECTIONS.RECEIPT_ITEMS,
@@ -133,6 +135,7 @@ export async function getReceiptItemsByFile(
   userId: string,
   fileId: string
 ): Promise<ReceiptItemRecord[]> {
+  const { databases } = await createSessionClient();
   const response = await databases.listDocuments(
     DATABASE_ID,
     COLLECTIONS.RECEIPT_ITEMS,
@@ -167,6 +170,7 @@ export async function deleteReceiptItemsByTransaction(
   userId: string,
   transactionId: string
 ): Promise<number> {
+  const { databases } = await createSessionClient();
   const items = await getReceiptItemsByTransaction(userId, transactionId);
 
   for (const item of items) {

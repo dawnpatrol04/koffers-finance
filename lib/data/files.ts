@@ -4,7 +4,7 @@
  */
 
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
-import { databases, storage } from '@/lib/appwrite-server';
+import { createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 
 export interface FileRecord {
@@ -40,6 +40,7 @@ export async function listUnprocessedFiles(
   userId: string,
   limit: number = 50
 ): Promise<FileRecord[]> {
+  const { databases } = await createSessionClient();
   const response = await databases.listDocuments(
     DATABASE_ID,
     COLLECTIONS.FILES,
@@ -75,6 +76,7 @@ export async function viewFile(
   userId: string,
   fileId: string
 ): Promise<FileViewResult> {
+  const { databases, storage } = await createSessionClient();
   // Get file metadata from database
   const fileRecords = await databases.listDocuments(
     DATABASE_ID,
@@ -125,6 +127,7 @@ export async function linkFileToTransaction(
   transactionId: string,
   fileType: 'receipt' | 'return' | 'warranty' | 'invoice' | 'note' | 'other' = 'receipt'
 ): Promise<{ success: boolean; fileId: string; transactionId: string; fileType: string }> {
+  const { databases } = await createSessionClient();
   // Find the file document by fileId (Appwrite storage ID)
   const filesToUpdate = await databases.listDocuments(
     DATABASE_ID,
@@ -170,6 +173,7 @@ export async function listFiles(
   userId: string,
   limit: number = 100
 ): Promise<FileRecord[]> {
+  const { databases } = await createSessionClient();
   const response = await databases.listDocuments(
     DATABASE_ID,
     COLLECTIONS.FILES,
