@@ -1,5 +1,5 @@
 import { anthropic } from '@ai-sdk/anthropic';
-import { streamText, convertToModelMessages, type UIMessage, tool } from 'ai';
+import { streamText, convertToModelMessages, type UIMessage, tool, stepCountIs } from 'ai';
 import { z } from 'zod';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
 import { createSessionClient } from '@/lib/appwrite-server';
@@ -45,8 +45,11 @@ You have access to tools to query and manage the user's financial data:
 - link_file_to_transaction: Link a receipt to a transaction after identifying the match
 - save_receipt_items: Save line items extracted from a receipt
 
-Always use these tools when the user asks about accounts, transactions, spending, receipts, or files.`,
+Always use these tools when the user asks about accounts, transactions, spending, receipts, or files.
+
+IMPORTANT: After using a tool, always provide a natural language summary of the results for the user.`,
     messages: convertToModelMessages(messages),
+    maxSteps: 5, // Allow multi-step tool calling so the model can respond after tool execution
     tools: {
       getAccounts: tool({
         description: 'Get all connected bank accounts with current balances',

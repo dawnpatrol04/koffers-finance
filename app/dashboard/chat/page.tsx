@@ -95,34 +95,24 @@ export default function ChatPage() {
                 if (part.type.startsWith('tool-')) {
                   const toolName = part.type.replace('tool-', '');
 
-                  // Show tool execution state
+                  // Show tool execution state (thinking indicator)
                   if (part.state === 'input-streaming' || part.state === 'input-available') {
                     return (
-                      <div key={index} className="text-sm text-muted-foreground italic my-2">
-                        🔄 Calling {toolName}...
+                      <div key={index} className="text-sm text-muted-foreground italic my-1">
+                        <span className="inline-flex items-center gap-2">
+                          <span className="animate-pulse">🔄</span>
+                          <span>Using {toolName.replace(/([A-Z])/g, ' $1').toLowerCase().trim()}...</span>
+                        </span>
                       </div>
                     );
                   }
 
-                  // Show tool results
-                  if (part.state === 'output-available') {
-                    return (
-                      <div key={index} className="text-sm my-2">
-                        <div className="font-medium text-muted-foreground mb-1">
-                          📊 {toolName}
-                        </div>
-                        <pre className="bg-background/50 rounded p-2 text-xs overflow-x-auto">
-                          {JSON.stringify(part.output, null, 2)}
-                        </pre>
-                      </div>
-                    );
-                  }
-
-                  // Show errors
+                  // Don't show tool results - the AI will summarize them in text
+                  // Only show errors
                   if (part.state === 'output-error') {
                     return (
                       <div key={index} className="text-sm text-red-500 my-2">
-                        ❌ Error calling {toolName}: {part.errorText}
+                        ❌ Error: {part.errorText}
                       </div>
                     );
                   }
