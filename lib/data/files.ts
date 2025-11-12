@@ -3,7 +3,8 @@
  * Shared between Chat AI tools and MCP server
  */
 
-import { databases, storage, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases, storage } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 
 export interface FileRecord {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, storage, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-server';
-import { Query, ID } from 'node-appwrite';
+import { DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS, ID } from '@/lib/appwrite-config';
+import { databases, storage } from '@/lib/appwrite-server';
+import { Query } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
 import heicConvert from 'heic-convert';
 import { fileTypeFromBuffer } from 'file-type';

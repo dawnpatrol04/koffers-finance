@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { storage, STORAGE_BUCKETS } from '@/lib/appwrite-server';
+import { STORAGE_BUCKETS } from '@/lib/appwrite-config';
+import { storage } from '@/lib/appwrite-server';
 
 export async function GET(
   request: NextRequest,

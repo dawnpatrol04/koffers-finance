@@ -1,47 +1,63 @@
 "use server";
 
-import { cookies } from 'next/headers';
-import { Client, Account } from 'node-appwrite';
+import { createAdminClient, setSession, deleteSession } from './appwrite-server';
+import { ID } from 'node-appwrite';
 import { redirect } from 'next/navigation';
 
-const SESSION_COOKIE = "appwrite-session";
+export async function signUpWithEmail(email: string, password: string, name: string) {
+  try {
+    const { account } = await createAdminClient();
 
-// Admin client for creating sessions
-function createAdminClient() {
-  const client = new Client()
-    .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-    .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
-    .setKey(process.env.APPWRITE_API_KEY!); // Server-side API key
+    // Create user account
+    await account.create(ID.unique(), email, password, name);
 
-  return { account: new Account(client) };
+    // Create session
+    const session = await account.createEmailPasswordSession(email, password);
+
+    // Store session in cookie
+    await setSession(session.secret);
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Sign up error:', error);
+    return {
+      success: false,
+      error: error?.message || 'Failed to create account'
+    };
+  }
 }
 
 export async function signInWithEmail(email: string, password: string) {
-  const { account } = createAdminClient();
+  try {
+    const { account } = await createAdminClient();
 
-  // Create session using admin client
-  const session = await account.createEmailPasswordSession(email, password);
+    // Create session
+    const session = await account.createEmailPasswordSession(email, password);
 
-  // Store session secret in HTTP-only cookie
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, session.secret, {
-    path: "/",
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    maxAge: 60 * 60 * 24 * 7 // 7 days
-  });
+    // Store session in cookie
+    await setSession(session.secret);
 
-  return { success: true };
+    return { success: true };
+  } catch (error: any) {
+    console.error('Sign in error:', error);
+    return {
+      success: false,
+      error: error?.message || 'Invalid email or password'
+    };
+  }
 }
 
 export async function signOut() {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
-  redirect('/login');
-}
+  try {
+    const { account } = await createAdminClient();
 
-export async function getSession() {
-  const cookieStore = await cookies();
-  return cookieStore.get(SESSION_COOKIE);
+    // Delete session from Appwrite
+    await account.deleteSession('current');
+  } catch (error) {
+    // Session might already be invalid, ignore error
+  } finally {
+    // Always delete cookie
+    await deleteSession();
+    redirect('/login');
+  }
 }

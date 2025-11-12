@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { storage, databases, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-config';
+import { storage, databases, createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
-import { validateSession } from '@/lib/auth-helpers';
 
 export async function PATCH(
   request: NextRequest,
@@ -9,7 +9,9 @@ export async function PATCH(
 ) {
   try {
     // Validate session and get userId securely
-    const { userId } = await validateSession();
+    const { account } = await createSessionClient();
+    const user = await account.get();
+    const userId = user.$id;
 
     const { fileId } = await params;
 
@@ -62,7 +64,9 @@ export async function DELETE(
 ) {
   try {
     // Validate session and get userId securely
-    const { userId } = await validateSession();
+    const { account } = await createSessionClient();
+    const user = await account.get();
+    const userId = user.$id;
 
     const { fileId } = await params;
 

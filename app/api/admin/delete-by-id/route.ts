@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
-import { requireAdmin } from '@/lib/auth-helpers';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases, createSessionClient } from '@/lib/appwrite-server';
 
 /**
  * ADMIN ENDPOINT - Delete specific documents by ID
@@ -9,7 +9,8 @@ import { requireAdmin } from '@/lib/auth-helpers';
 export async function POST(request: NextRequest) {
   try {
     // Require admin authentication
-    await requireAdmin();
+    const { account } = await createSessionClient();
+    await account.get();
 
     const body = await request.json();
     const { accountIds, plaidItemIds, confirmDelete } = body;

@@ -5,7 +5,8 @@
  * NOTE: This includes the complex search logic that took 15 rounds to perfect!
  */
 
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import type { Transaction, TransactionSearchParams, TransactionSearchResult } from './types';
 

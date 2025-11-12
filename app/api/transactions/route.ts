@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession } from "@/lib/auth-helpers";
+import { createSessionClient } from "@/lib/appwrite-server";
 import { databases } from "@/lib/appwrite-server";
 import { DATABASE_ID } from "@/lib/config";
 import { ID } from "node-appwrite";
@@ -7,7 +7,9 @@ import { ID } from "node-appwrite";
 export async function POST(req: NextRequest) {
   try {
     // Get authenticated user session
-    const { userId } = await validateSession();
+    const { account } = await createSessionClient();
+    const user = await account.get();
+    const userId = user.$id;
 
     // Parse request body
     const body = await req.json();

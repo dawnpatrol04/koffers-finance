@@ -2,7 +2,6 @@
 
 import { createContext, useContext, useEffect, useState } from "react";
 import { Models } from "appwrite";
-import { getCurrentUser } from "@/lib/appwrite-client";
 
 interface UserContextType {
   user: Models.User<Models.Preferences> | null;
@@ -18,8 +17,11 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     try {
-      const currentUser = await getCurrentUser();
-      setUser(currentUser);
+      const response = await fetch('/api/user', {
+        credentials: 'include', // Important: include cookies
+      });
+      const data = await response.json();
+      setUser(data.user);
     } catch (error) {
       setUser(null);
     } finally {

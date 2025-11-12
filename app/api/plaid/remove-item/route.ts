@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { plaidClient } from '@/lib/plaid';
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases, createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
-import { validateSession } from '@/lib/auth-helpers';
 
 export async function POST(request: NextRequest) {
   try {
     // Validate session and get userId securely
-    const { userId } = await validateSession();
+    const { account } = await createSessionClient();
+    const user = await account.get();
+    const userId = user.$id;
 
     const body = await request.json();
     const { itemId, deleteTransactions = false } = body;

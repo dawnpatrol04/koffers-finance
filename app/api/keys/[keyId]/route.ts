@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases } from '@/lib/appwrite-server';
 
 // DELETE /api/keys/[keyId] - Delete an API key
 export async function DELETE(

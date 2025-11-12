@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPlaidProducts, getCountryCodes } from '@/lib/plaid';
-import { validateSession } from '@/lib/auth-helpers';
+import { createSessionClient } from '@/lib/appwrite-server';
 
 // PRODUCTION ONLY - No sandbox
 const PLAID_BASE_URL = 'https://production.plaid.com';

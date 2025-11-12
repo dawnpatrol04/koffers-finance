@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, storage, DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-config';
+import { databases, storage } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import Anthropic from '@anthropic-ai/sdk';
 

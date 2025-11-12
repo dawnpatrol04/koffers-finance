@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases, createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
-import { requireAdmin } from '@/lib/auth-helpers';
 
 /**
  * ADMIN ENDPOINT - Delete all accounts and Plaid items for cleanup
@@ -10,7 +10,9 @@ import { requireAdmin } from '@/lib/auth-helpers';
 export async function POST(request: NextRequest) {
   try {
     // Require admin authentication
-    const { userId: adminUserId } = await requireAdmin();
+    const { account } = await createSessionClient();
+    const adminUser = await account.get();
+    const adminUserId = adminUser.$id;
 
     const body = await request.json();
     const { userId, confirmDelete } = body;

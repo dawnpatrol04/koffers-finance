@@ -1,9 +1,9 @@
 import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, convertToModelMessages, type UIMessage, tool } from 'ai';
 import { z } from 'zod';
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases, createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
-import { validateSession } from '@/lib/auth-helpers';
 import * as accountsData from '@/lib/data/accounts';
 import * as transactionsData from '@/lib/data/transactions';
 import * as filesData from '@/lib/data/files';
@@ -14,9 +14,11 @@ export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    // Validate session and get userId securely (supports JWT from Authorization header)
+    // Validate session and get userId securely
     console.log('[Chat API] Validating session...');
-    const { userId } = await validateSession(req);
+    const { account } = await createSessionClient();
+    const user = await account.get();
+    const userId = user.$id;
     console.log('[Chat API] Session validated for user:', userId);
 
     const { messages }: { messages: UIMessage[] } = await req.json();

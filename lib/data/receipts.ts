@@ -3,8 +3,9 @@
  * Shared between Chat AI tools and MCP server
  */
 
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
-import { Query, ID } from 'node-appwrite';
+import { DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-config';
+import { databases } from '@/lib/appwrite-server';
+import { Query } from 'node-appwrite';
 
 export interface ReceiptItem {
   name: string;

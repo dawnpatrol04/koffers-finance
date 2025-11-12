@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { anthropic } from '@ai-sdk/anthropic';
 import { generateText } from 'ai';
-import { databases, DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-server';
-import { validateSession } from '@/lib/auth-helpers';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { databases, createSessionClient } from '@/lib/appwrite-server';
 
 // Merchant categorization cache
 // Maps normalized merchant name → category
@@ -163,7 +163,8 @@ export async function GET() {
 export async function PATCH(request: NextRequest) {
   try {
     // Validate session
-    await validateSession();
+    const { account } = await createSessionClient();
+    await account.get();
 
     const { transactionId, category } = await request.json();
 
@@ -253,7 +254,8 @@ export async function PATCH(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     // Validate session
-    await validateSession();
+    const { account } = await createSessionClient();
+    await account.get();
 
     const { transactionId, transactionIds } = await request.json();
 
