@@ -28,6 +28,10 @@ const items = [
         path: "/dashboard/cash-flow",
         name: "Cash Flow",
       },
+      {
+        path: "/dashboard/net-worth",
+        name: "Net Worth",
+      },
     ],
   },
   {
