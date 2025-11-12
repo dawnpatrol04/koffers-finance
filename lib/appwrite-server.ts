@@ -103,7 +103,7 @@ export async function setSession(secret: string) {
   cookieStore.set(SESSION_COOKIE, secret, {
     path: "/",
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax", // Changed from "strict" to "lax" to allow cookies on redirects
     secure: process.env.NODE_ENV === "production",
     maxAge: 60 * 60 * 24 * 30, // 30 days
   });
