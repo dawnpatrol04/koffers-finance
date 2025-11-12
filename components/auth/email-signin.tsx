@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { account } from "@/lib/appwrite-client";
 import { useRouter } from "next/navigation";
-import { useUser } from "@/contexts/user-context";
+import { signInWithEmail } from "@/lib/auth-actions";
 
 export function EmailSignIn() {
   const [isOpen, setIsOpen] = useState(false);
@@ -12,7 +12,6 @@ export function EmailSignIn() {
   const [isSignUp, setIsSignUp] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
-  const { refreshUser } = useUser();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,20 +19,18 @@ export function EmailSignIn() {
 
     try {
       if (isSignUp) {
-        // Create account
+        // Create account using client SDK
         await account.create("unique()", email, password);
-        // Then sign in
-        await account.createEmailPasswordSession(email, password);
+        // Then sign in using server action (creates HTTP-only cookie)
+        await signInWithEmail(email, password);
       } else {
-        // Sign in
-        await account.createEmailPasswordSession(email, password);
+        // Sign in using server action (creates HTTP-only cookie)
+        await signInWithEmail(email, password);
       }
 
-      // CRITICAL FIX: Refresh user context BEFORE navigation
-      // This ensures UserContext has the latest session before we navigate
-      await refreshUser();
-
+      // Navigate to dashboard and force refresh to load user server-side
       router.push("/dashboard");
+      router.refresh();
     } catch (error) {
       console.error("Email auth error:", error);
       alert(isSignUp ? "Sign up failed. Please try again." : "Sign in failed. Please check your credentials.");

@@ -1,57 +1,32 @@
 import { cookies } from 'next/headers';
 import { Client, Account } from 'node-appwrite';
 
+const SESSION_COOKIE = "appwrite-session";
+
 /**
  * Validate session and return authenticated user
  * Use in API routes that need authentication
- * Supports both cookie-based and JWT-based authentication
+ * Uses HTTP-only session cookie for authentication
  */
 export async function validateSession(req?: Request) {
   console.log('[validateSession] Starting validation...');
 
-  const projectId = process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!;
-  let jwtToken: string | null = null;
-  let sessionCookieValue: string | null = null;
+  // Get session cookie
+  const cookieStore = await cookies();
+  const sessionCookie = cookieStore.get(SESSION_COOKIE);
 
-  // Try JWT from Authorization header first (for client-side requests)
-  if (req) {
-    const authHeader = req.headers.get('Authorization');
-    if (authHeader?.startsWith('Bearer ')) {
-      jwtToken = authHeader.substring(7);
-      console.log('[validateSession] Using JWT from Authorization header');
-    }
-  }
-
-  // Fall back to cookies (for server-side requests)
-  if (!jwtToken) {
-    const cookieStore = await cookies();
-    const allCookies = cookieStore.getAll();
-    console.log('[validateSession] All cookies:', allCookies.map(c => c.name));
-    console.log('[validateSession] Looking for cookie: a_session_' + projectId);
-
-    const sessionCookie = cookieStore.get(`a_session_${projectId}`);
-    if (sessionCookie) {
-      sessionCookieValue = sessionCookie.value;
-      console.log('[validateSession] Using session from cookie');
-    }
-  }
-
-  if (!jwtToken && !sessionCookieValue) {
-    console.error('[validateSession] No session found (no cookie or JWT)');
+  if (!sessionCookie) {
+    console.error('[validateSession] No session cookie found');
     throw new Error('Unauthorized - No session');
   }
+
+  console.log('[validateSession] Using session from cookie');
 
   // Create session client
   const client = new Client()
     .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
-    .setProject(projectId);
-
-  // Use appropriate auth method
-  if (jwtToken) {
-    client.setJWT(jwtToken);  // For JWT tokens from Authorization header
-  } else if (sessionCookieValue) {
-    client.setSession(sessionCookieValue);  // For session cookies
-  }
+    .setProject(process.env.NEXT_PUBLIC_APPWRITE_PROJECT_ID!)
+    .setSession(sessionCookie.value);
 
   const account = new Account(client);
 
