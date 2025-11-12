@@ -81,6 +81,7 @@ export default function ChatPage() {
               )}
             >
               {message.parts.map((part, index) => {
+                // Render text parts
                 if (part.type === 'text') {
                   return (
                     <p key={index} className="text-sm whitespace-pre-wrap">
@@ -88,6 +89,44 @@ export default function ChatPage() {
                     </p>
                   );
                 }
+
+                // Render tool invocations
+                if (part.type === 'tool-invocation') {
+                  const toolInvocation = part.toolInvocation;
+
+                  // Show tool execution state
+                  if (toolInvocation.state === 'input-streaming' || toolInvocation.state === 'input-available') {
+                    return (
+                      <div key={index} className="text-sm text-muted-foreground italic my-2">
+                        🔄 Calling {toolInvocation.toolName}...
+                      </div>
+                    );
+                  }
+
+                  // Show tool results
+                  if (toolInvocation.state === 'output-available') {
+                    return (
+                      <div key={index} className="text-sm my-2">
+                        <div className="font-medium text-muted-foreground mb-1">
+                          📊 {toolInvocation.toolName}
+                        </div>
+                        <pre className="bg-background/50 rounded p-2 text-xs overflow-x-auto">
+                          {JSON.stringify(toolInvocation.result, null, 2)}
+                        </pre>
+                      </div>
+                    );
+                  }
+
+                  // Show errors
+                  if (toolInvocation.state === 'output-error') {
+                    return (
+                      <div key={index} className="text-sm text-red-500 my-2">
+                        ❌ Error calling {toolInvocation.toolName}: {toolInvocation.errorText}
+                      </div>
+                    );
+                  }
+                }
+
                 return null;
               })}
               <p
