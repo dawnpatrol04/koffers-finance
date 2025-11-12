@@ -2,7 +2,6 @@
 
 import { useRef, useEffect, useState } from "react";
 import { useChat } from "@ai-sdk/react";
-import { DefaultChatTransport } from "ai";
 import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
@@ -13,12 +12,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const { user } = useUser();
 
-  const { messages, sendMessage, status, stop } = useChat({
-    transport: new DefaultChatTransport({
-      api: '/api/chat',
-    }),
+  const { messages, append, status, stop } = useChat({
+    api: '/api/chat',
     credentials: 'include',
-    // No need for JWT - session cookies are sent automatically with credentials: 'include'
   });
 
   const scrollToBottom = () => {
@@ -144,7 +140,7 @@ export default function ChatPage() {
           onSubmit={(e) => {
             e.preventDefault();
             if (input.trim()) {
-              sendMessage({ text: input });
+              append({ role: 'user', content: input });
               setInput("");
             }
           }}
