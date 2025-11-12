@@ -20,6 +20,17 @@ export async function getCurrentUser() {
   }
 }
 
+// Helper function to create a JWT for API authentication
+export async function createJWT() {
+  try {
+    const jwt = await account.createJWT();
+    return jwt.jwt;
+  } catch (error) {
+    console.error("Error creating JWT:", error);
+    return null;
+  }
+}
+
 // Helper function to logout
 export async function logout() {
   try {

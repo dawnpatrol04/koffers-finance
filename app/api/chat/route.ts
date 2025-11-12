@@ -14,9 +14,9 @@ export const maxDuration = 30;
 
 export async function POST(req: Request) {
   try {
-    // Validate session and get userId securely
+    // Validate session and get userId securely (supports JWT from Authorization header)
     console.log('[Chat API] Validating session...');
-    const { userId } = await validateSession();
+    const { userId } = await validateSession(req);
     console.log('[Chat API] Session validated for user:', userId);
 
     const { messages }: { messages: UIMessage[] } = await req.json();
