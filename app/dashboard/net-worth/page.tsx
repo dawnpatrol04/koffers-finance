@@ -58,26 +58,119 @@ export default function NetWorthPage() {
         const accountsData = accountsResponse.documents as unknown as Account[];
         setAccounts(accountsData);
 
-        // For now, we'll use current balances
-        // In the future, we can track historical balances
-        const currentDate = new Date().toISOString().split('T')[0];
-        const totalAssets = accountsData
-          .filter(acc => acc.currentBalance > 0)
-          .reduce((sum, acc) => sum + acc.currentBalance, 0);
+        // Fetch all transactions to calculate historical net worth
+        const transactionsResponse = await databases.listDocuments(
+          DATABASE_ID,
+          'plaidTransactions',
+          [
+            Query.equal('userId', user.$id),
+            Query.limit(5000),
+          ]
+        );
 
-        const totalLiabilities = Math.abs(accountsData
-          .filter(acc => acc.currentBalance < 0)
-          .reduce((sum, acc) => sum + acc.currentBalance, 0));
+        // Create a map of account ID to current balance
+        const accountBalances = new Map<string, number>();
+        accountsData.forEach(acc => {
+          accountBalances.set(acc.$id, acc.currentBalance);
+        });
 
-        // Create a simple history (in future, fetch actual historical data)
-        setNetWorthHistory([
-          {
-            date: currentDate,
-            assets: totalAssets,
-            liabilities: totalLiabilities,
-            netWorth: totalAssets - totalLiabilities,
+        // Process transactions to calculate historical balances
+        const transactions = transactionsResponse.documents.map((doc: any) => {
+          const raw = JSON.parse(doc.rawData);
+          return {
+            date: raw.date,
+            amount: raw.amount,
+            accountId: doc.plaidAccountId,
+          };
+        });
+
+        // Sort transactions by date (newest first)
+        transactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+        // Calculate historical net worth by month
+        const monthlyNetWorth: Record<string, { assets: number; liabilities: number; netWorth: number }> = {};
+
+        // Start with current balances for each account
+        const historicalBalances = new Map<string, number>(accountBalances);
+
+        // Work backwards through time
+        transactions.forEach(txn => {
+          const month = txn.date.substring(0, 7); // YYYY-MM
+
+          // Update historical balance by reversing the transaction
+          // (subtract the transaction amount to go back in time)
+          const currentBal = historicalBalances.get(txn.accountId) || 0;
+          historicalBalances.set(txn.accountId, currentBal - txn.amount);
+        });
+
+        // Now calculate net worth for each month going forward
+        const sortedMonths: string[] = [];
+        const monthBalances = new Map<string, Map<string, number>>();
+
+        // Initialize with current balances for the most recent month
+        const now = new Date();
+        const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        monthBalances.set(currentMonth, new Map(accountBalances));
+        sortedMonths.push(currentMonth);
+
+        // Go back through transactions and calculate balance at end of each month
+        transactions.reverse(); // Now oldest first
+
+        const monthlyTxns: Record<string, any[]> = {};
+        transactions.forEach(txn => {
+          const month = txn.date.substring(0, 7);
+          if (!monthlyTxns[month]) {
+            monthlyTxns[month] = [];
           }
-        ]);
+          monthlyTxns[month].push(txn);
+        });
+
+        // Calculate net worth for each month
+        const months = Object.keys(monthlyTxns).sort();
+
+        // Start from the oldest month and work forward
+        const runningBalances = new Map<string, number>();
+
+        // Initialize with zeros or earliest known balances
+        accountsData.forEach(acc => {
+          runningBalances.set(acc.$id, 0);
+        });
+
+        months.forEach(month => {
+          // Apply this month's transactions
+          monthlyTxns[month].forEach((txn: any) => {
+            const currentBal = runningBalances.get(txn.accountId) || 0;
+            runningBalances.set(txn.accountId, currentBal + txn.amount);
+          });
+
+          // Calculate net worth at end of month
+          let monthAssets = 0;
+          let monthLiabilities = 0;
+
+          runningBalances.forEach((balance, accountId) => {
+            if (balance > 0) {
+              monthAssets += balance;
+            } else if (balance < 0) {
+              monthLiabilities += Math.abs(balance);
+            }
+          });
+
+          monthlyNetWorth[month] = {
+            assets: monthAssets,
+            liabilities: monthLiabilities,
+            netWorth: monthAssets - monthLiabilities,
+          };
+        });
+
+        // Convert to array for chart
+        const historyData = Object.keys(monthlyNetWorth)
+          .sort()
+          .map(month => ({
+            date: month,
+            ...monthlyNetWorth[month],
+          }));
+
+        setNetWorthHistory(historyData);
 
       } catch (error) {
         console.error('Error fetching net worth data:', error);
@@ -134,10 +227,84 @@ export default function NetWorthPage() {
         </p>
       </div>
 
+      {/* Net Worth Trend Over Time - Full Width */}
+      <Card className="mb-6">
+        <CardHeader>
+          <CardTitle>Net Worth Trend Over Time</CardTitle>
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <span>Current Net Worth: <span className={`font-semibold ${netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}>${netWorth.toFixed(2)}</span></span>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {netWorthHistory.length > 0 ? (
+            <div className="h-[400px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart
+                  data={netWorthHistory}
+                  margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="colorNetWorth" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+                      <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorAssets" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#22c55e" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                    </linearGradient>
+                    <linearGradient id="colorLiabilities" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#ef4444" stopOpacity={0.6}/>
+                      <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="date" />
+                  <YAxis />
+                  <Tooltip
+                    formatter={(value: number) => `$${value.toFixed(2)}`}
+                    labelFormatter={(label) => `Month: ${label}`}
+                  />
+                  <Legend />
+                  <Area
+                    type="monotone"
+                    dataKey="assets"
+                    stroke="#22c55e"
+                    fillOpacity={1}
+                    fill="url(#colorAssets)"
+                    name="Assets"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="liabilities"
+                    stroke="#ef4444"
+                    fillOpacity={1}
+                    fill="url(#colorLiabilities)"
+                    name="Liabilities"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="netWorth"
+                    stroke="#8884d8"
+                    fillOpacity={1}
+                    fill="url(#colorNetWorth)"
+                    strokeWidth={3}
+                    name="Net Worth"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="h-[400px] flex items-center justify-center text-muted-foreground">
+              No historical data available yet
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Current Net Worth - Hero Section */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle>Current Net Worth</CardTitle>
+          <CardTitle>Current Net Worth Breakdown</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
