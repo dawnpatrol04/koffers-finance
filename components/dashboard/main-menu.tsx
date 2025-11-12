@@ -23,6 +23,12 @@ const items = [
   {
     path: "/dashboard",
     name: "Overview",
+    children: [
+      {
+        path: "/dashboard/cash-flow",
+        name: "Cash Flow",
+      },
+    ],
   },
   {
     path: "/dashboard/chat",
