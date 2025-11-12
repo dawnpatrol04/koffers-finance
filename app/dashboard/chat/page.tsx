@@ -12,7 +12,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const { user } = useUser();
 
-  const { messages, append, status, stop } = useChat({
+  const { messages, sendMessage, status, stop } = useChat({
     api: '/api/chat',
     credentials: 'include',
   });
@@ -140,7 +140,7 @@ export default function ChatPage() {
           onSubmit={(e) => {
             e.preventDefault();
             if (input.trim()) {
-              append({ role: 'user', content: input });
+              sendMessage({ text: input });
               setInput("");
             }
           }}
