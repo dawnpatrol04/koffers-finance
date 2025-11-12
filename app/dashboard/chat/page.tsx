@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Icons } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/contexts/user-context";
-import { createJWT } from "@/lib/appwrite-client";
 
 export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -19,11 +18,7 @@ export default function ChatPage() {
       api: '/api/chat',
     }),
     credentials: 'include',
-    headers: async () => {
-      // Get JWT from Appwrite for authentication
-      const jwt = await createJWT();
-      return jwt ? { Authorization: `Bearer ${jwt}` } : {};
-    },
+    // No need for JWT - session cookies are sent automatically with credentials: 'include'
   });
 
   const scrollToBottom = () => {
