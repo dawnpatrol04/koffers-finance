@@ -17,6 +17,7 @@ export default function ChatPage() {
     transport: new DefaultChatTransport({
       api: '/api/chat',
     }),
+    credentials: 'include', // Send cookies with requests for authentication
   });
 
   const scrollToBottom = () => {
@@ -141,15 +142,8 @@ export default function ChatPage() {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (input.trim() && user) {
-              sendMessage(
-                { text: input },
-                {
-                  body: {
-                    userId: user.$id,
-                  },
-                }
-              );
+            if (input.trim()) {
+              sendMessage({ text: input });
               setInput("");
             }
           }}
