@@ -6,6 +6,8 @@ import heicConvert from 'heic-convert';
 import { fileTypeFromBuffer } from 'file-type';
 import * as accountsData from '@/lib/data/accounts';
 import * as transactionsData from '@/lib/data/transactions';
+import * as filesData from '@/lib/data/files';
+import * as receiptsData from '@/lib/data/receipts';
 
 /**
  * MCP (Model Context Protocol) Server Endpoint
@@ -457,16 +459,8 @@ export async function POST(request: NextRequest) {
 
           case 'list_unprocessed_files':
             try {
-              const unprocessedFiles = await databases.listDocuments(
-                DATABASE_ID,
-                'files',
-                [
-                  Query.equal('userId', userId),
-                  Query.equal('ocrStatus', 'pending'),
-                  Query.limit(toolArgs.limit || 50),
-                  Query.orderDesc('createdAt')
-                ]
-              );
+              // Use shared business logic
+              const files = await filesData.listUnprocessedFiles(userId, toolArgs.limit || 50);
 
               return NextResponse.json({
                 jsonrpc: '2.0',
@@ -475,16 +469,8 @@ export async function POST(request: NextRequest) {
                   content: [{
                     type: 'text',
                     text: JSON.stringify({
-                      files: unprocessedFiles.documents.map((f: any) => ({
-                        id: f.$id,
-                        fileId: f.fileId,
-                        fileName: f.fileName,
-                        mimeType: f.mimeType,
-                        fileSize: f.fileSize,
-                        createdAt: f.createdAt,
-                        ocrStatus: f.ocrStatus
-                      })),
-                      total: unprocessedFiles.total
+                      files,
+                      total: files.length
                     }, null, 2)
                   }]
                 }
@@ -507,63 +493,42 @@ export async function POST(request: NextRequest) {
                 throw new Error('fileId parameter is required');
               }
 
-              // Get file metadata from database
-              const fileRecords = await databases.listDocuments(
-                DATABASE_ID,
-                'files',
-                [
-                  Query.equal('userId', userId),
-                  Query.equal('fileId', toolArgs.fileId),
-                  Query.limit(1)
-                ]
-              );
-
-              if (fileRecords.documents.length === 0) {
-                throw new Error(`File not found with ID: ${toolArgs.fileId}. File may have been deleted or you may not have permission to access it.`);
-              }
-
-              const fileRecord = fileRecords.documents[0];
-
-              // Download file from Appwrite storage
-              const fileBuffer = await storage.getFileDownload('files', toolArgs.fileId);
-
-              // Convert to base64
-              const base64Data = Buffer.from(fileBuffer).toString('base64');
+              // Use shared business logic
+              const fileData = await filesData.viewFile(userId, toolArgs.fileId);
 
               // Return appropriate content type based on mimeType
-              const mimeType = fileRecord.mimeType;
               const content: any[] = [];
 
-              if (mimeType.startsWith('image/')) {
+              if (fileData.mimeType.startsWith('image/')) {
                 // Return as ImageContent for vision processing
                 content.push({
                   type: 'image',
-                  data: base64Data,
-                  mimeType: mimeType
+                  data: fileData.base64Data,
+                  mimeType: fileData.mimeType
                 });
                 content.push({
                   type: 'text',
-                  text: `Image: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}`
+                  text: `Image: ${fileData.fileName}\nFile ID: ${fileData.fileId}\nSize: ${fileData.fileSizeKB} KB\nType: ${fileData.mimeType}`
                 });
-              } else if (mimeType === 'application/pdf') {
+              } else if (fileData.mimeType === 'application/pdf') {
                 // Return as EmbeddedResource for PDFs
                 content.push({
                   type: 'resource',
                   resource: {
-                    uri: `file:///${fileRecord.fileName}`,
+                    uri: `file:///${fileData.fileName}`,
                     mimeType: 'application/pdf',
-                    blob: base64Data
+                    blob: fileData.base64Data
                   }
                 });
                 content.push({
                   type: 'text',
-                  text: `PDF Document: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nPages: Use Claude's PDF processing to extract content`
+                  text: `PDF Document: ${fileData.fileName}\nFile ID: ${fileData.fileId}\nSize: ${fileData.fileSizeKB} KB\nPages: Use Claude's PDF processing to extract content`
                 });
               } else {
                 // Return as text with base64 for other file types
                 content.push({
                   type: 'text',
-                  text: `File: ${fileRecord.fileName}\nFile ID: ${toolArgs.fileId}\nSize: ${Math.round(fileRecord.fileSize / 1024)} KB\nType: ${mimeType}\n\nBase64 Data:\n${base64Data.substring(0, 200)}... (truncated)`
+                  text: `File: ${fileData.fileName}\nFile ID: ${fileData.fileId}\nSize: ${fileData.fileSizeKB} KB\nType: ${fileData.mimeType}\n\nBase64 Data:\n${fileData.base64Data.substring(0, 200)}... (truncated)`
                 });
               }
 
@@ -633,32 +598,12 @@ export async function POST(request: NextRequest) {
                 throw new Error('fileId and transactionId are both required parameters');
               }
 
-              // NEW ARCHITECTURE: Update file to link to transaction (not vice versa)
-              // Find the file document by fileId (Appwrite storage ID)
-              const filesToUpdate = await databases.listDocuments(
-                DATABASE_ID,
-                COLLECTIONS.FILES,
-                [
-                  Query.equal('userId', userId),
-                  Query.equal('fileId', toolArgs.fileId),
-                  Query.limit(1)
-                ]
-              );
-
-              if (filesToUpdate.documents.length === 0) {
-                throw new Error(`File not found with ID: ${toolArgs.fileId}. Use list_unprocessed_files to see available files.`);
-              }
-
-              // Update file with transaction link and mark as completed
-              await databases.updateDocument(
-                DATABASE_ID,
-                COLLECTIONS.FILES,
-                filesToUpdate.documents[0].$id,
-                {
-                  transactionId: toolArgs.transactionId,
-                  fileType: toolArgs.fileType || 'receipt',
-                  ocrStatus: 'completed'
-                }
+              // Use shared business logic
+              const result = await filesData.linkFileToTransaction(
+                userId,
+                toolArgs.fileId,
+                toolArgs.transactionId,
+                toolArgs.fileType || 'receipt'
               );
 
               return NextResponse.json({
@@ -668,10 +613,7 @@ export async function POST(request: NextRequest) {
                   content: [{
                     type: 'text',
                     text: JSON.stringify({
-                      success: true,
-                      fileId: toolArgs.fileId,
-                      transactionId: toolArgs.transactionId,
-                      fileType: toolArgs.fileType || 'receipt',
+                      ...result,
                       message: 'Receipt linked to transaction successfully'
                     }, null, 2)
                   }]
@@ -694,39 +636,13 @@ export async function POST(request: NextRequest) {
                 throw new Error('transactionId and items array are required parameters');
               }
 
-              if (toolArgs.items.length === 0) {
-                throw new Error('items array cannot be empty');
-              }
-
-              const createdItems = [];
-
-              for (let i = 0; i < toolArgs.items.length; i++) {
-                const item = toolArgs.items[i];
-
-                // Validate item fields
-                if (!item.name || item.quantity === undefined || item.price === undefined) {
-                  console.error(`Invalid item at index ${i}:`, item);
-                  continue; // Skip invalid items
-                }
-
-                const newItem = await databases.createDocument(
-                  DATABASE_ID,
-                  'receiptItems',
-                  ID.unique(),
-                  {
-                    userId: userId, // NEW: add userId for security
-                    transactionId: toolArgs.transactionId,
-                    fileId: toolArgs.fileId || null, // NEW: link to specific receipt file
-                    name: item.name,
-                    quantity: item.quantity,
-                    price: item.price,
-                    totalPrice: item.totalPrice || (item.quantity * item.price),
-                    category: item.category || null,
-                    tags: item.tags || [] // NEW: business/personal tags
-                  }
-                );
-                createdItems.push(newItem.$id);
-              }
+              // Use shared business logic
+              const result = await receiptsData.saveReceiptItems(
+                userId,
+                toolArgs.transactionId,
+                toolArgs.items,
+                toolArgs.fileId
+              );
 
               return NextResponse.json({
                 jsonrpc: '2.0',
@@ -734,12 +650,7 @@ export async function POST(request: NextRequest) {
                 result: {
                   content: [{
                     type: 'text',
-                    text: JSON.stringify({
-                      success: true,
-                      itemsCreated: createdItems.length,
-                      itemIds: createdItems,
-                      transactionId: toolArgs.transactionId
-                    }, null, 2)
+                    text: JSON.stringify(result, null, 2)
                   }]
                 }
               });
