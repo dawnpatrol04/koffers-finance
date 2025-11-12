@@ -23,6 +23,7 @@ import { PlaidLink } from "@/components/plaid/plaid-link";
 import { useUser } from "@/contexts/user-context";
 import { databases } from "@/lib/appwrite-client";
 import { DATABASE_ID } from '@/lib/config';
+import { Query } from "appwrite";
 
 interface PlaidAccount {
   $id: string;
