@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { FileText, Image as ImageIcon, CheckCircle2, Clock, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { databases } from "@/lib/appwrite-client";
+import { Query } from "appwrite";
+import { useUser } from "@/contexts/user-context";
 
 interface Receipt {
   id: string;
@@ -19,24 +22,51 @@ interface Receipt {
   fileType: string | null;
 }
 
+const DATABASE_ID = process.env.NEXT_PUBLIC_APPWRITE_DATABASE_ID || 'koffers_poc';
+const FILES_COLLECTION = 'files';
+
 export default function ReceiptsPage() {
+  const { user } = useUser();
   const [receipts, setReceipts] = useState<Receipt[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<"all" | "pending" | "completed" | "failed">("all");
 
   const fetchReceipts = async () => {
+    if (!user) return;
+
     setIsLoading(true);
     try {
-      const params = new URLSearchParams();
+      // Build query
+      const queries = [
+        Query.equal('userId', user.$id),
+        Query.limit(50),
+        Query.orderDesc('$createdAt'),
+      ];
+
       if (filter !== "all") {
-        params.set("status", filter);
+        queries.push(Query.equal('ocrStatus', filter));
       }
 
-      const response = await fetch(`/api/files/list?${params.toString()}`);
-      if (!response.ok) throw new Error("Failed to fetch receipts");
+      // Fetch directly from Appwrite client-side
+      const response = await databases.listDocuments(
+        DATABASE_ID,
+        FILES_COLLECTION,
+        queries
+      );
 
-      const data = await response.json();
-      setReceipts(data.files);
+      const files = response.documents.map((doc: any) => ({
+        id: doc.$id,
+        fileId: doc.fileId,
+        fileName: doc.fileName,
+        mimeType: doc.mimeType,
+        fileSize: doc.fileSize,
+        ocrStatus: doc.ocrStatus,
+        createdAt: doc.$createdAt,
+        transactionId: doc.transactionId || null,
+        fileType: doc.fileType || null,
+      }));
+
+      setReceipts(files);
     } catch (error) {
       console.error("Error fetching receipts:", error);
     } finally {
@@ -46,7 +76,7 @@ export default function ReceiptsPage() {
 
   useEffect(() => {
     fetchReceipts();
-  }, [filter]);
+  }, [filter, user]);
 
   const getStatusIcon = (status: string) => {
     switch (status) {
