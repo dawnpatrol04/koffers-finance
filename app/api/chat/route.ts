@@ -2,7 +2,7 @@ import { anthropic } from '@ai-sdk/anthropic';
 import { streamText, convertToModelMessages, type UIMessage, tool } from 'ai';
 import { z } from 'zod';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
-import { databases, createSessionClient } from '@/lib/appwrite-server';
+import { createSessionClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import * as accountsData from '@/lib/data/accounts';
 import * as transactionsData from '@/lib/data/transactions';
