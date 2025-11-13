@@ -49,7 +49,7 @@ Always use these tools when the user asks about accounts, transactions, spending
 
 IMPORTANT: After using a tool, always provide a natural language summary of the results for the user.`,
     messages: convertToModelMessages(messages),
-    maxSteps: 5, // Allow multi-step tool calling so the model can respond after tool execution
+    stopWhen: stepCountIs(5), // Allow multi-step tool calling so the model can respond after tool execution
     tools: {
       getAccounts: tool({
         description: 'Get all connected bank accounts with current balances',
