@@ -20,6 +20,7 @@ export const COLLECTIONS = {
   PLAID_TRANSACTIONS: 'plaidTransactions',
   API_KEYS: 'apiKeys',
   SYNC_JOBS: 'syncJobs',
+  SUBSCRIPTIONS: 'subscriptions',
 } as const;
 
 export const STORAGE_BUCKETS = {

@@ -1,0 +1,94 @@
+KOFFERS PRICING CALCULATOR,,,,,
+,,,,,
+COST INPUTS (Per User Per Month),Value,Notes,,
+Plaid per bank connection,0.30,Fixed cost per bank per month,,
+Claude API (average),0.10,Average usage estimate,,
+Appwrite allocated,0.30,Database/backend per user,,
+Vercel allocated,0.10,Frontend hosting per user,,
+Stripe percentage,2.90%,Payment processing %,,
+Stripe flat fee,0.30,Payment processing flat fee,,
+Target profit margin,10%,Minimum profit margin goal,,
+,,,,,
+MONTHLY PRICING CALCULATOR,,,,,
+Number of Banks,3,6,9,12
+,,,,,
+Base Costs (before Stripe),,,,,
+Plaid costs,=B4*B14,=B4*C14,=B4*D14,=B4*E14
+Claude API,=B5,=B5,=B5,=B5
+Appwrite,=B6,=B6,=B6,=B6
+Vercel,=B7,=B7,=B7,=B7
+Total Base Cost,=SUM(B17:B20),=SUM(C17:C20),=SUM(D17:D20),=SUM(E17:E20)
+,,,,,
+Pricing Options,,,,,
+Option 1: Cost + 10%,,,,,
+Target revenue (before Stripe),=B21*1.10,=C21*1.10,=D21*1.10,=E21*1.10
+Required price (with Stripe),=(B26+B9)/(1-B8),=(C26+C9)/(1-C8),=(D26+D9)/(1-D8),=(E26+E9)/(1-E8)
+Rounded monthly price,=ROUND(B27,2),=ROUND(C27,2),=ROUND(D27,2),=ROUND(E27,2)
+,,,,,
+Verification,,,,,
+Stripe fee on price,=(B28*B8)+B9,=(C28*C8)+C9,=(D28*D8)+D9,=(E28*E8)+E9
+Net after Stripe,=B28-B31,=C28-C31,=D28-D31,=E28-E31
+Minus base costs,=B32-B21,=C32-C21,=D32-D21,=E32-E21
+Actual profit margin %,=B33/B28,=C33/C28,=D33/D28,=E33/E28
+,,,,,
+Option 2: Cost + 20%,,,,,
+Target revenue (before Stripe),=B21*1.20,=C21*1.20,=D21*1.20,=E21*1.20
+Required price (with Stripe),=(B37+B9)/(1-B8),=(C37+C9)/(1-C8),=(D37+D9)/(1-D8),=(E37+E9)/(1-E8)
+Rounded monthly price,=ROUND(B38,2),=ROUND(C38,2),=ROUND(D38,2),=ROUND(E38,2)
+,,,,,
+Verification,,,,,
+Stripe fee on price,=(B39*B8)+B9,=(C39*C8)+C9,=(D39*D8)+D9,=(E39*E8)+E9
+Net after Stripe,=B39-B42,=C39-C42,=D39-D42,=E39-E42
+Minus base costs,=B43-B21,=C43-C21,=D43-D21,=E43-E21
+Actual profit margin %,=B44/B39,=C44/C39,=D44/D39,=E44/E39
+,,,,,
+,,,,,
+ANNUAL PRICING CALCULATOR,,,,,
+Number of Banks,3,6,9,12
+,,,,,
+Annual Base Costs,,,,,
+Plaid costs (yearly),=B4*B51*12,=B4*C51*12,=B4*D51*12,=B4*E51*12
+Claude API (yearly),=B5*12,=B5*12,=B5*12,=B5*12
+Appwrite (yearly),=B6*12,=B6*12,=B6*12,=B6*12
+Vercel (yearly),=B7*12,=B7*12,=B7*12,=B7*12
+Total Annual Base Cost,=SUM(B54:B57),=SUM(C54:C57),=SUM(D54:D57),=SUM(E54:E57)
+,,,,,
+Annual Pricing Options,,,,,
+Option 1: Cost + 10%,,,,,
+Target revenue (before Stripe),=B58*1.10,=C58*1.10,=D58*1.10,=E58*1.10
+Required price (with Stripe),=(B63+B9)/(1-B8),=(C63+C9)/(1-C8),=(D63+D9)/(1-D8),=(E63+E9)/(1-E8)
+Rounded annual price,=ROUND(B64,2),=ROUND(C64,2),=ROUND(D64,2),=ROUND(E64,2)
+Monthly equivalent,=B65/12,=C65/12,=D65/12,=E65/12
+,,,,,
+Verification,,,,,
+Stripe fee on annual price,=(B65*B8)+B9,=(C65*C8)+C9,=(D65*D8)+D9,=(E65*E8)+E9
+Net after Stripe,=B65-B69,=C65-C69,=D65-D69,=E65-E69
+Minus base costs,=B70-B58,=C70-C58,=D70-D58,=E70-E58
+Actual profit margin %,=B71/B65,=C71/C65,=D71/D65,=E71/E65
+Annual savings vs monthly,=(B28*12)-B65,=(C28*12)-C65,=(D28*12)-D65,=(E28*12)-E65
+,,,,,
+Option 2: Cost + 20%,,,,,
+Target revenue (before Stripe),=B58*1.20,=C58*1.20,=D58*1.20,=E58*1.20
+Required price (with Stripe),=(B76+B9)/(1-B8),=(C76+C9)/(1-C8),=(D76+D9)/(1-D8),=(E76+E9)/(1-E8)
+Rounded annual price,=ROUND(B77,2),=ROUND(C77,2),=ROUND(D77,2),=ROUND(E77,2)
+Monthly equivalent,=B78/12,=C78/12,=D78/12,=E78/12
+,,,,,
+Verification,,,,,
+Stripe fee on annual price,=(B78*B8)+B9,=(C78*C8)+C9,=(D78*D8)+D9,=(E78*E8)+E9
+Net after Stripe,=B78-B82,=C78-C82,=D78-D82,=E78-E82
+Minus base costs,=B83-B58,=C83-C58,=D83-D58,=E83-E58
+Actual profit margin %,=B84/B78,=C84/C78,=D84/D78,=E84/E78
+Annual savings vs monthly,=(B39*12)-B78,=(C39*12)-C78,=(D39*12)-D78,=(E39*12)-E78
+,,,,,
+,,,,,
+SUMMARY COMPARISON,,,,,
+,3 Banks,6 Banks,9 Banks,12 Banks
+,,,,,
+Monthly Cost+10%,=B28,=C28,=D28,=E28
+Monthly Cost+20%,=B39,=C39,=D39,=E39
+Annual Cost+10%,=B65,=C65,=D65,=E65
+Annual Cost+20%,=B78,=C78,=D78,=E78
+,,,,,
+Best Value (Annual vs Monthly),"If monthly, customer pays:",=B28*12,=C28*12,=D28*12
+,"If annual, customer pays:",=B65,=C65,=D65
+,"Customer saves by going annual:",=B73,=C73,=D73
