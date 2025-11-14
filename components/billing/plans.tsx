@@ -92,16 +92,39 @@ export function Plans() {
     );
   };
 
-  const handleSubscribe = () => {
-    // Will integrate with Stripe
-    const selectedAddons = addons
-      .filter((addon) => addon.enabled)
-      .map((addon) => addon.id);
-    console.log("Subscribe clicked", {
-      basePrice,
-      addons: selectedAddons,
-      totalPrice,
-    });
+  const handleSubscribe = async () => {
+    try {
+      // Build addons array with quantities
+      const selectedAddons = addons
+        .filter((addon) => addon.enabled)
+        .map((addon) => ({
+          id: addon.id,
+          quantity: addon.quantity || 1,
+        }));
+
+      // Call API to create Stripe Checkout session
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ addons: selectedAddons }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create checkout session');
+      }
+
+      const { url } = await response.json();
+
+      // Redirect to Stripe Checkout
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (error) {
+      console.error('Error starting checkout:', error);
+      alert('Failed to start checkout. Please try again.');
+    }
   };
 
   return (

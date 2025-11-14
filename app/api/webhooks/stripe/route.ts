@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
-import { users } from '@/lib/appwrite-server';
 import { BASE_PLAN_LIMITS, SubscriptionData } from '@/lib/subscription-helpers';
+import { createAdminClient } from '@/lib/appwrite-server';
 import Stripe from 'stripe';
 
+function getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) {
+    throw new Error('STRIPE_SECRET_KEY is not set');
+  }
+  return new Stripe(process.env.STRIPE_SECRET_KEY, {
+    apiVersion: '2024-11-20.acacia',
+  });
+}
+
 export async function POST(req: NextRequest) {
+  const stripe = getStripe();
   const body = await req.text();
   const signature = req.headers.get('stripe-signature');
 
@@ -100,6 +109,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   const limits = calculateLimits(subscription.items.data);
 
   // Get current user prefs
+  const { users } = await createAdminClient();
   const userPrefs = await users.getPrefs(userId);
   const currentSubscription = userPrefs.subscription as SubscriptionData | undefined;
 
@@ -145,6 +155,7 @@ async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
   }
 
   // Get current user prefs
+  const { users } = await createAdminClient();
   const userPrefs = await users.getPrefs(userId);
   const currentSubscription = userPrefs.subscription as SubscriptionData | undefined;
 
@@ -206,6 +217,7 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
   }
 
   // Get current user prefs
+  const { users } = await createAdminClient();
   const userPrefs = await users.getPrefs(userId);
   const currentSubscription = userPrefs.subscription as SubscriptionData | undefined;
 

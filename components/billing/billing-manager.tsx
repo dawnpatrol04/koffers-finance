@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { SubscriptionCard } from "./subscription-card";
 import { AddOnModal } from "./add-on-modal";
+import { Plans } from "./plans";
 import { useUser } from "@/contexts/user-context";
 import { useRouter } from "next/navigation";
 import { databases } from "@/lib/appwrite-client";
@@ -103,7 +104,7 @@ export function BillingManager() {
       setLoading(true);
 
       // Call Stripe checkout API (user auth handled server-side via session cookie)
-      const response = await fetch("/api/stripe/checkout", {
+      const response = await fetch("/api/stripe/create-checkout-session", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -224,6 +225,12 @@ export function BillingManager() {
     );
   }
 
+  // If user doesn't have a subscription, show the Plans component with add-ons
+  if (!subscription.hasSubscription) {
+    return <Plans />;
+  }
+
+  // If user has a subscription, show the subscription management card
   return (
     <>
       <SubscriptionCard
