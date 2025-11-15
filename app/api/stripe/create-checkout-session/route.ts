@@ -14,7 +14,18 @@ function getStripe() {
 export async function POST(request: NextRequest) {
   try {
     const stripe = getStripe();
-    const body = await request.json();
+
+    // Parse body, handling empty bodies gracefully
+    let body = {};
+    try {
+      const text = await request.text();
+      if (text) {
+        body = JSON.parse(text);
+      }
+    } catch (e) {
+      // Empty body is fine, use defaults
+    }
+
     const { addons = [] } = body;
 
     // Get authenticated user from session cookie
@@ -71,6 +82,11 @@ export async function POST(request: NextRequest) {
       metadata: {
         userId: user.$id,
       },
+      customer_creation: 'always',
+      custom_fields: [],
+      customer_update: {
+        name: 'auto',
+      },
       subscription_data: {
         metadata: {
           userId: user.$id,
@@ -81,8 +97,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ url: session.url });
   } catch (error) {
     console.error('Error creating checkout session:', error);
+    // Include the actual error message for debugging
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
-      { error: 'Failed to create checkout session' },
+      {
+        error: 'Failed to create checkout session',
+        details: errorMessage,
+        stack: error instanceof Error ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

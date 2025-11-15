@@ -6,9 +6,6 @@ import { AddOnModal } from "./add-on-modal";
 import { Plans } from "./plans";
 import { useUser } from "@/contexts/user-context";
 import { useRouter } from "next/navigation";
-import { databases } from "@/lib/appwrite-client";
-import { DATABASE_ID, COLLECTIONS } from "@/lib/appwrite-config";
-import { Query } from "appwrite";
 
 interface Subscription {
   hasSubscription: boolean;
@@ -55,7 +52,7 @@ export function BillingManager() {
 
   const [loading, setLoading] = useState(false);
 
-  // Fetch subscription data from Appwrite
+  // Fetch subscription data from server-side API
   useEffect(() => {
     const fetchSubscription = async () => {
       if (!user) {
@@ -64,14 +61,11 @@ export function BillingManager() {
       }
 
       try {
-        const subscriptions = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.SUBSCRIPTIONS,
-          [Query.equal("userId", user.$id)]
-        );
+        const response = await fetch("/api/subscription");
+        const data = await response.json();
 
-        if (subscriptions.documents.length > 0) {
-          const subDoc = subscriptions.documents[0];
+        if (data.subscription) {
+          const subDoc = data.subscription;
 
           setSubscription({
             hasSubscription: true,
@@ -155,15 +149,12 @@ export function BillingManager() {
         alert("Add-on successfully added!");
         setAddOnModal({ open: false, type: null });
 
-        // Refresh subscription data
-        const subscriptions = await databases.listDocuments(
-          DATABASE_ID,
-          COLLECTIONS.SUBSCRIPTIONS,
-          [Query.equal("userId", user!.$id)]
-        );
+        // Refresh subscription data from server
+        const refreshResponse = await fetch("/api/subscription");
+        const refreshData = await refreshResponse.json();
 
-        if (subscriptions.documents.length > 0) {
-          const subDoc = subscriptions.documents[0];
+        if (refreshData.subscription) {
+          const subDoc = refreshData.subscription;
           setSubscription({
             hasSubscription: true,
             isActive: subDoc.status === "active",

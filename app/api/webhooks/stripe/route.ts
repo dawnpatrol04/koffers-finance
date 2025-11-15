@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { BASE_PLAN_LIMITS, SubscriptionData } from '@/lib/subscription-helpers';
 import { createAdminClient } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
+import { ID, Permission, Role, Query } from 'node-appwrite';
 import Stripe from 'stripe';
 
 function getStripe() {
@@ -77,9 +79,15 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ received: true });
   } catch (err) {
-    console.error('Error processing webhook:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+    const errorStack = err instanceof Error ? err.stack : undefined;
+    console.error('Error processing webhook:', errorMessage, errorStack);
     return NextResponse.json(
-      { error: 'Error processing webhook' },
+      {
+        error: 'Error processing webhook',
+        details: errorMessage,
+        stack: errorStack
+      },
       { status: 500 }
     );
   }
@@ -91,47 +99,78 @@ export async function POST(req: NextRequest) {
 async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   console.log('Processing subscription update:', subscription.id);
 
-  // Get userId from customer metadata
-  const customer = await stripe.customers.retrieve(subscription.customer as string);
+  const stripe = getStripe();
 
-  if (customer.deleted) {
-    console.error('Customer was deleted');
-    return;
+  // Get userId - try subscription metadata first, then customer metadata
+  let userId = subscription.metadata?.userId;
+
+  if (!userId) {
+    const customer = await stripe.customers.retrieve(subscription.customer as string);
+    if (customer.deleted) {
+      console.error('Customer was deleted');
+      return;
+    }
+    userId = customer.metadata?.userId;
   }
 
-  const userId = customer.metadata.userId;
   if (!userId) {
-    console.error('No userId found in customer metadata');
+    console.error('No userId found in subscription or customer metadata');
     return;
   }
 
   // Calculate limits based on subscription items
   const limits = calculateLimits(subscription.items.data);
 
-  // Get current user prefs
-  const { users } = await createAdminClient();
-  const userPrefs = await users.getPrefs(userId);
-  const currentSubscription = userPrefs.subscription as SubscriptionData | undefined;
+  // Get Appwrite clients
+  const { databases } = await createAdminClient();
 
-  // Update user preferences with new subscription data
-  await users.updatePrefs(userId, {
-    ...userPrefs,
-    subscription: {
-      status: subscription.status,
-      stripeCustomerId: subscription.customer,
-      stripeSubscriptionId: subscription.id,
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
-      limits: limits,
-      usage: currentSubscription?.usage || {
-        institutionConnections: 0,
-        storageGB: 0,
-        aiChatMessagesThisMonth: 0,
-        aiChatMessagesResetDate: new Date().toISOString(),
-      },
-    },
-  });
+  // Check if subscription document already exists
+  const existing = await databases.listDocuments(
+    DATABASE_ID,
+    COLLECTIONS.SUBSCRIPTIONS,
+    [Query.equal('userId', userId)]
+  );
 
-  console.log('Updated user subscription:', userId, limits);
+  const subscriptionData = {
+    userId,
+    status: subscription.status,
+    stripeCustomerId: subscription.customer as string,
+    stripeSubscriptionId: subscription.id,
+    currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+    maxBanks: limits.institutionConnections,
+    maxChatsPerMonth: limits.aiChatMessagesPerMonth,
+    maxStorageGB: limits.storageGB,
+    currentBanksConnected: existing.documents[0]?.currentBanksConnected || 0,
+    currentChatsUsed: existing.documents[0]?.currentChatsUsed || 0,
+    currentStorageUsedGB: existing.documents[0]?.currentStorageUsedGB || 0,
+    addonBanks: 0, // TODO: Calculate from subscription items
+    addonChats: 0,
+    addonStorage: 0,
+  };
+
+  if (existing.documents.length > 0) {
+    // Update existing document
+    await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.SUBSCRIPTIONS,
+      existing.documents[0].$id,
+      subscriptionData,
+      [Permission.read(Role.user(userId))]
+    );
+    console.log('Updated subscription document:', userId);
+  } else {
+    // Create new document with user read permission
+    await databases.createDocument(
+      DATABASE_ID,
+      COLLECTIONS.SUBSCRIPTIONS,
+      ID.unique(),
+      subscriptionData,
+      [Permission.read(Role.user(userId))]
+    );
+    console.log('Created subscription document:', userId);
+  }
+
+  console.log('Processed subscription update:', userId, limits);
 }
 
 /**
@@ -140,37 +179,51 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
 async function handleSubscriptionCanceled(subscription: Stripe.Subscription) {
   console.log('Processing subscription cancellation:', subscription.id);
 
-  // Get userId from customer metadata
-  const customer = await stripe.customers.retrieve(subscription.customer as string);
+  const stripe = getStripe();
 
-  if (customer.deleted) {
-    console.error('Customer was deleted');
-    return;
-  }
+  // Get userId - try subscription metadata first, then customer metadata
+  let userId = subscription.metadata?.userId;
 
-  const userId = customer.metadata.userId;
   if (!userId) {
-    console.error('No userId found in customer metadata');
+    const customer = await stripe.customers.retrieve(subscription.customer as string);
+    if (customer.deleted) {
+      console.error('Customer was deleted');
+      return;
+    }
+    userId = customer.metadata?.userId;
+  }
+
+  if (!userId) {
+    console.error('No userId found in subscription or customer metadata');
     return;
   }
 
-  // Get current user prefs
-  const { users } = await createAdminClient();
-  const userPrefs = await users.getPrefs(userId);
-  const currentSubscription = userPrefs.subscription as SubscriptionData | undefined;
+  // Get Appwrite clients
+  const { databases } = await createAdminClient();
 
-  // Mark subscription as canceled but keep limits until period end
-  await users.updatePrefs(userId, {
-    ...userPrefs,
-    subscription: {
-      ...currentSubscription,
-      status: 'canceled',
-      stripeSubscriptionId: subscription.id,
-      currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
-    },
-  });
+  // Find the subscription document
+  const existing = await databases.listDocuments(
+    DATABASE_ID,
+    COLLECTIONS.SUBSCRIPTIONS,
+    [Query.equal('userId', userId)]
+  );
 
-  console.log('Marked subscription as canceled:', userId);
+  if (existing.documents.length > 0) {
+    // Update status to canceled
+    await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.SUBSCRIPTIONS,
+      existing.documents[0].$id,
+      {
+        status: 'canceled',
+        currentPeriodEnd: new Date(subscription.current_period_end * 1000).toISOString(),
+      },
+      [Permission.read(Role.user(userId))]
+    );
+    console.log('Marked subscription as canceled:', userId);
+  } else {
+    console.error('No subscription document found for user:', userId);
+  }
 }
 
 /**
@@ -183,6 +236,8 @@ async function handlePaymentSucceeded(invoice: Stripe.Invoice) {
     console.log('Invoice not associated with a subscription');
     return;
   }
+
+  const stripe = getStripe();
 
   // Retrieve the subscription
   const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
@@ -202,35 +257,51 @@ async function handlePaymentFailed(invoice: Stripe.Invoice) {
     return;
   }
 
-  // Get userId from customer metadata
-  const customer = await stripe.customers.retrieve(invoice.customer as string);
+  const stripe = getStripe();
 
-  if (customer.deleted) {
-    console.error('Customer was deleted');
-    return;
-  }
+  // Retrieve the subscription to get metadata
+  const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
 
-  const userId = customer.metadata.userId;
+  // Get userId - try subscription metadata first, then customer metadata
+  let userId = subscription.metadata?.userId;
+
   if (!userId) {
-    console.error('No userId found in customer metadata');
+    const customer = await stripe.customers.retrieve(invoice.customer as string);
+    if (customer.deleted) {
+      console.error('Customer was deleted');
+      return;
+    }
+    userId = customer.metadata?.userId;
+  }
+
+  if (!userId) {
+    console.error('No userId found in subscription or customer metadata');
     return;
   }
 
-  // Get current user prefs
-  const { users } = await createAdminClient();
-  const userPrefs = await users.getPrefs(userId);
-  const currentSubscription = userPrefs.subscription as SubscriptionData | undefined;
+  // Get Appwrite clients
+  const { databases } = await createAdminClient();
 
-  // Mark subscription as past_due
-  await users.updatePrefs(userId, {
-    ...userPrefs,
-    subscription: {
-      ...currentSubscription,
-      status: 'past_due',
-    },
-  });
+  // Find the subscription document
+  const existing = await databases.listDocuments(
+    DATABASE_ID,
+    COLLECTIONS.SUBSCRIPTIONS,
+    [Query.equal('userId', userId)]
+  );
 
-  console.log('Marked subscription as past_due:', userId);
+  if (existing.documents.length > 0) {
+    // Update status to past_due
+    await databases.updateDocument(
+      DATABASE_ID,
+      COLLECTIONS.SUBSCRIPTIONS,
+      existing.documents[0].$id,
+      { status: 'past_due' },
+      [Permission.read(Role.user(userId))]
+    );
+    console.log('Marked subscription as past_due:', userId);
+  } else {
+    console.error('No subscription document found for user:', userId);
+  }
 }
 
 /**
