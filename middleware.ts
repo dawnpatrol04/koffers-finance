@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { checkSubscriptionAccess, getAccessDeniedMessage } from './lib/subscription-check';
 
 const SESSION_COOKIE = "appwrite-session";
 
@@ -16,6 +17,10 @@ export async function middleware(request: NextRequest) {
   // Protected routes that require auth
   const isProtectedRoute = pathname.startsWith('/dashboard');
 
+  // Routes that require paid subscription
+  // Allow billing page so users can subscribe, but protect everything else
+  const requiresSubscription = isProtectedRoute && !pathname.startsWith('/dashboard/settings/billing');
+
   // API routes (most need auth, except webhooks)
   const isAPIRoute = pathname.startsWith('/api/');
   const isPublicAPI = pathname.startsWith('/api/webhook') ||
@@ -31,6 +36,19 @@ export async function middleware(request: NextRequest) {
   // If accessing API route without session (except public APIs), return 401
   if (isAPIRoute && !hasSession && !isPublicAPI) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
+  // Check subscription for routes that require it
+  if (requiresSubscription && hasSession) {
+    const subscriptionCheck = await checkSubscriptionAccess();
+
+    if (!subscriptionCheck.hasAccess) {
+      // Redirect to billing page with message
+      const billingUrl = new URL('/dashboard/settings/billing', request.url);
+      billingUrl.searchParams.set('reason', subscriptionCheck.reason || 'no_subscription');
+      billingUrl.searchParams.set('redirect', pathname);
+      return NextResponse.redirect(billingUrl);
+    }
   }
 
   // If accessing login page with session, redirect to dashboard
