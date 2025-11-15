@@ -6,7 +6,7 @@
  */
 
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
-import { createSessionClient } from '@/lib/appwrite-server';
+import { createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import type { Transaction, TransactionSearchParams, TransactionSearchResult } from './types';
 
@@ -46,7 +46,7 @@ export async function getTransactions(
   userId: string,
   params: TransactionSearchParams = {}
 ): Promise<Transaction[]> {
-  const { databases } = await createSessionClient();
+  const { databases } = await createAdminClient();
   const {
     limit = 50,
     accountId,
@@ -116,7 +116,7 @@ export async function searchTransactions(
   dateTo: string,
   merchant?: string
 ): Promise<TransactionSearchResult[]> {
-  const { databases } = await createSessionClient();
+  const { databases } = await createAdminClient();
   // Fetch all transactions (we filter in memory since date/amount are in rawData JSON)
   const response = await databases.listDocuments(
     DATABASE_ID,
@@ -203,7 +203,7 @@ export async function getSpendingSummary(
   startDate?: string,
   endDate?: string
 ) {
-  const { databases } = await createSessionClient();
+  const { databases } = await createAdminClient();
   const summaryEndDate = endDate || new Date().toISOString().split('T')[0];
   const summaryStartDate =
     startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
