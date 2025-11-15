@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { plaidClient } from '@/lib/plaid';
 import { DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-config';
-import { databases } from '@/lib/appwrite-server';
+import { createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import { jwtVerify, importJWK, decodeJwt, JWK } from 'jose';
 import { createHash } from 'crypto';
@@ -129,6 +129,7 @@ export async function POST(request: NextRequest) {
     const itemId = body.item_id;
 
     // Find the user associated with this item
+    const { databases } = await createAdminClient();
     const itemsResponse = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.PLAID_ITEMS,
@@ -253,6 +254,7 @@ async function syncTransactions(
   webhookBody: any
 ) {
   try {
+    const { databases } = await createAdminClient();
     // Get the date range from webhook (if provided)
     // For DEFAULT_UPDATE, we only need recent transactions (last 30 days)
     const endDate = new Date();
@@ -427,6 +429,7 @@ async function syncTransactions(
 
 async function removeTransactions(removedTransactionIds: string[]) {
   try {
+    const { databases } = await createAdminClient();
     console.log(`🗑️ Removing ${removedTransactionIds.length} transactions`);
 
     for (const transactionId of removedTransactionIds) {

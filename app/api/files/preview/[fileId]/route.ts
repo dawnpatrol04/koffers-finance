@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { STORAGE_BUCKETS } from '@/lib/appwrite-config';
-import { storage } from '@/lib/appwrite-server';
+import { createAdminClient } from '@/lib/appwrite-server';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { fileId: string } }
 ) {
   try {
+    const { storage } = await createAdminClient();
     const { fileId } = params;
 
     if (!fileId) {

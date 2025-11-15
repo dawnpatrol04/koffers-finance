@@ -38,11 +38,9 @@ export default function DeveloperSettings() {
   }, [user?.$id]);
 
   const fetchKeys = async () => {
-    if (!user?.$id) return;
-
     try {
       setLoading(true);
-      const response = await fetch(`/api/keys?userId=${user.$id}`);
+      const response = await fetch('/api/keys');
       const data = await response.json();
       if (data.keys) {
         setKeys(data.keys);
@@ -60,28 +58,23 @@ export default function DeveloperSettings() {
       return;
     }
 
-    if (!user?.$id) {
-      alert('User not authenticated');
-      return;
-    }
-
     try {
       setCreating(true);
       const response = await fetch('/api/keys', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.$id, name: keyName }),
+        body: JSON.stringify({ name: keyName }),
       });
 
       const data = await response.json();
 
-      if (data.key) {
+      if (response.ok && data.key) {
         setNewKeyValue(data.key.keyValue);
         setKeyName("");
         setShowCreateForm(false);
         fetchKeys(); // Refresh the list
       } else {
-        alert('Failed to create API key');
+        alert(`Failed to create API key: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Error creating API key:', error);
@@ -96,14 +89,14 @@ export default function DeveloperSettings() {
       return;
     }
 
-    if (!user?.$id) {
-      alert('User not authenticated');
-      return;
-    }
-
     try {
-      await fetch(`/api/keys/${keyId}?userId=${user.$id}`, { method: 'DELETE' });
-      fetchKeys(); // Refresh the list
+      const response = await fetch(`/api/keys/${keyId}`, { method: 'DELETE' });
+      if (response.ok) {
+        fetchKeys(); // Refresh the list
+      } else {
+        const data = await response.json();
+        alert(`Failed to delete API key: ${data.error || 'Unknown error'}`);
+      }
     } catch (error) {
       console.error('Error deleting API key:', error);
       alert('Error deleting API key');

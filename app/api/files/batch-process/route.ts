@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-config';
-import { databases, storage } from '@/lib/appwrite-server';
+import { createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import Anthropic from '@anthropic-ai/sdk';
 
@@ -10,6 +10,7 @@ const anthropic = new Anthropic({
 
 export async function POST(request: NextRequest) {
   try {
+    const { databases, storage } = await createAdminClient();
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId');
     const limit = parseInt(searchParams.get('limit') || '5');

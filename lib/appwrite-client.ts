@@ -9,7 +9,7 @@
  * and server actions from lib/appwrite-server.ts instead.
  */
 
-import { Client, Databases, Storage } from 'appwrite';
+import { Client, Databases, Storage, Account } from 'appwrite';
 
 const client = new Client()
   .setEndpoint(process.env.NEXT_PUBLIC_APPWRITE_ENDPOINT!)
@@ -17,7 +17,8 @@ const client = new Client()
 
 export const databases = new Databases(client);
 export const storage = new Storage(client);
+export const account = new Account(client);
 
 export { client };
 
-// Note: Account exports removed - authentication is server-side only
+// Note: Account instance needed for client to send session cookies with requests

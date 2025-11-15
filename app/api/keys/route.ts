@@ -1,23 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-config';
-import { databases } from '@/lib/appwrite-server';
+import { createAdminClient, getCurrentUser } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import { nanoid } from 'nanoid';
+import bcrypt from 'bcryptjs';
 
 // GET /api/keys - List all API keys for the current user
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    // Get authenticated user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { databases } = await createAdminClient();
     const keys = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.API_KEYS,
-      [Query.equal('userId', userId), Query.orderDesc('$createdAt')]
+      [Query.equal('userId', user.$id), Query.orderDesc('$createdAt')]
     );
 
     // Don't send the actual key value to the client, only show prefix
@@ -40,12 +41,14 @@ export async function GET(request: NextRequest) {
 // POST /api/keys - Create a new API key
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, name, expiresInDays } = body;
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    // Get authenticated user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const body = await request.json();
+    const { name, expiresInDays } = body;
 
     if (!name || typeof name !== 'string') {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -55,6 +58,9 @@ export async function POST(request: NextRequest) {
     const keyValue = `kf_live_${nanoid(32)}`;
     const keyPrefix = `${keyValue.substring(0, 11)}...`; // Show kf_live_xxx...
 
+    // Hash the key with bcrypt (cost factor 12) before storing
+    const hashedKey = await bcrypt.hash(keyValue, 12);
+
     // Calculate expiration date if provided
     let expiresAt = null;
     if (expiresInDays && typeof expiresInDays === 'number' && expiresInDays > 0) {
@@ -63,14 +69,15 @@ export async function POST(request: NextRequest) {
       expiresAt = expDate.toISOString();
     }
 
+    const { databases } = await createAdminClient();
     const keyDoc = await databases.createDocument(
       DATABASE_ID,
       COLLECTIONS.API_KEYS,
       ID.unique(),
       {
-        userId,
+        userId: user.$id,
         name,
-        keyValue, // Store the full key (hashed in production!)
+        keyValue: hashedKey, // Store ONLY the hashed key
         keyPrefix,
         lastUsedAt: null,
         expiresAt,

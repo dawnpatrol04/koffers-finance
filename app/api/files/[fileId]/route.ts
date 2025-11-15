@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS } from '@/lib/appwrite-config';
-import { storage, databases, createSessionClient } from '@/lib/appwrite-server';
+import { createSessionClient, createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 
 export async function PATCH(
@@ -13,6 +13,7 @@ export async function PATCH(
     const user = await account.get();
     const userId = user.$id;
 
+    const { databases } = await createAdminClient();
     const { fileId } = await params;
 
     // Get file metadata from database
@@ -68,6 +69,7 @@ export async function DELETE(
     const user = await account.get();
     const userId = user.$id;
 
+    const { storage, databases } = await createAdminClient();
     const { fileId } = await params;
 
     // Get file metadata from database

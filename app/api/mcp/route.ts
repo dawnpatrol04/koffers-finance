@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS, ID } from '@/lib/appwrite-config';
-import { databases, storage } from '@/lib/appwrite-server';
+import { createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import { InputFile } from 'node-appwrite/file';
 import heicConvert from 'heic-convert';
 import { fileTypeFromBuffer } from 'file-type';
+import bcrypt from 'bcryptjs';
 import * as accountsData from '@/lib/data/accounts';
 import * as transactionsData from '@/lib/data/transactions';
 import * as filesData from '@/lib/data/files';
@@ -27,32 +28,41 @@ async function validateApiKey(apiKey: string): Promise<string | null> {
   }
 
   try {
+    const { databases } = await createAdminClient();
+
+    // Get the prefix from the provided API key (first 11 chars: "kf_live_xxx")
+    const keyPrefix = `${apiKey.substring(0, 11)}...`;
+
+    // Query by keyPrefix to reduce the number of keys to check
     const keysResponse = await databases.listDocuments(
       DATABASE_ID,
       COLLECTIONS.API_KEYS,
-      [Query.equal('keyValue', apiKey), Query.limit(1)]
+      [Query.equal('keyPrefix', keyPrefix), Query.limit(10)]
     );
 
-    if (keysResponse.documents.length === 0) {
-      return null;
+    // Check each key with the matching prefix using bcrypt
+    for (const keyDoc of keysResponse.documents) {
+      const isMatch = await bcrypt.compare(apiKey, keyDoc.keyValue);
+
+      if (isMatch) {
+        // Check if key is expired
+        if (keyDoc.expiresAt && new Date(keyDoc.expiresAt) < new Date()) {
+          return null;
+        }
+
+        // Update lastUsedAt timestamp
+        await databases.updateDocument(
+          DATABASE_ID,
+          COLLECTIONS.API_KEYS,
+          keyDoc.$id,
+          { lastUsedAt: new Date().toISOString() }
+        );
+
+        return keyDoc.userId;
+      }
     }
 
-    const keyDoc = keysResponse.documents[0];
-
-    // Check if key is expired
-    if (keyDoc.expiresAt && new Date(keyDoc.expiresAt) < new Date()) {
-      return null;
-    }
-
-    // Update lastUsedAt timestamp
-    await databases.updateDocument(
-      DATABASE_ID,
-      COLLECTIONS.API_KEYS,
-      keyDoc.$id,
-      { lastUsedAt: new Date().toISOString() }
-    );
-
-    return keyDoc.userId;
+    return null;
   } catch (error) {
     console.error('API key validation error:', error);
     return null;
@@ -717,6 +727,7 @@ export async function POST(request: NextRequest) {
 
           case 'upload_file':
             try {
+              const { databases, storage } = await createAdminClient();
               const { fileData, fileName, mimeType: providedMimeType } = toolArgs;
 
               // Validate parameters
@@ -846,6 +857,7 @@ export async function POST(request: NextRequest) {
         });
 
       case 'resources/read':
+        const { databases } = await createAdminClient();
         const resourceUri = params?.uri;
 
         if (resourceUri === 'koffers://accounts') {

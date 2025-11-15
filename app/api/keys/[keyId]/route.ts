@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
-import { databases } from '@/lib/appwrite-server';
+import { createAdminClient, getCurrentUser } from '@/lib/appwrite-server';
 
 // DELETE /api/keys/[keyId] - Delete an API key
 export async function DELETE(
@@ -8,19 +8,20 @@ export async function DELETE(
   { params }: { params: Promise<{ keyId: string }> }
 ) {
   try {
-    const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
-
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    // Get authenticated user
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     const { keyId } = await params;
 
+    const { databases } = await createAdminClient();
+
     // Verify the key belongs to the user before deleting
     const key = await databases.getDocument(DATABASE_ID, COLLECTIONS.API_KEYS, keyId);
 
-    if (key.userId !== userId) {
+    if (key.userId !== user.$id) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

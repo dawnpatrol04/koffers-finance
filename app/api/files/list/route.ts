@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
-import { databases, createSessionClient } from '@/lib/appwrite-server';
+import { createSessionClient, createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 
 export async function GET(request: NextRequest) {
@@ -9,6 +9,8 @@ export async function GET(request: NextRequest) {
     const { account } = await createSessionClient();
     const user = await account.get();
     const userId = user.$id;
+
+    const { databases } = await createAdminClient();
 
     // Get query parameters
     const { searchParams } = new URL(request.url);

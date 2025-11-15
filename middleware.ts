@@ -16,10 +16,11 @@ export async function middleware(request: NextRequest) {
   // Protected routes that require auth
   const isProtectedRoute = pathname.startsWith('/dashboard');
 
-  // API routes (most need auth, except webhooks)
+  // API routes (most need auth, except webhooks and MCP)
   const isAPIRoute = pathname.startsWith('/api/');
   const isPublicAPI = pathname.startsWith('/api/webhook') ||
-                      pathname.startsWith('/api/plaid/webhook');
+                      pathname.startsWith('/api/plaid/webhook') ||
+                      pathname.startsWith('/api/mcp'); // MCP uses API key auth, not session cookies
 
   // If accessing protected route without session, redirect to login
   if (isProtectedRoute && !hasSession) {

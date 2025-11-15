@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { plaidClient } from '@/lib/plaid';
 import { DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-config';
-import { databases } from '@/lib/appwrite-server';
+import { createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import { TransactionsSyncRequest } from 'plaid';
 import { createSessionClient } from '@/lib/appwrite-server';
@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
     const { background = false } = body;
 
     // Create sync job record
+    const { databases } = await createAdminClient();
     const syncJob = await databases.createDocument(
       DATABASE_ID,
       COLLECTIONS.SYNC_JOBS,
@@ -82,6 +83,7 @@ export async function POST(request: NextRequest) {
  * Updates sync job status as it progresses
  */
 async function performSync(userId: string, jobId: string) {
+  const { databases } = await createAdminClient();
   const updateJob = async (updates: any) => {
     try {
       await databases.updateDocument(

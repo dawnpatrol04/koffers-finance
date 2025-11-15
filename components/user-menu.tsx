@@ -10,21 +10,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { logout } from "@/lib/appwrite-client";
-import { useRouter } from "next/navigation";
+import { logoutAction } from "@/app/actions/auth";
 import { LogOut } from "lucide-react";
 
 export function UserMenu() {
-  const { user, refreshUser } = useUser();
-  const router = useRouter();
+  const { user } = useUser();
 
   if (!user) return null;
 
   const handleLogout = async () => {
     try {
-      await logout();
-      await refreshUser(); // Clear user state
-      router.push("/login");
+      await logoutAction();
     } catch (error) {
       console.error("Logout failed:", error);
     }

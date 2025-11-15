@@ -31,6 +31,28 @@ Once you finish what you're working on, figure out what else needs to be done an
 - Identify the next logical task based on the current state of the project
 - Be proactive - don't stop until explicitly told to stop
 
+## SUBSCRIPTION ACCESS CONTROL PATTERN
+
+**We are using Appwrite's officially recommended pattern for authentication and access control.**
+
+**Official Documentation:**
+- Main guide: https://appwrite.io/docs/tutorials/nextjs-ssr-auth/
+- Pattern: Server Components with `redirect()` - NOT middleware
+- Reason: Next.js middleware runs on Edge Runtime, Appwrite SDK requires Node.js runtime (incompatible)
+
+**Our Implementation:**
+- ✅ Server Component guards on each protected page
+- ✅ `checkSubscriptionAccess()` helper in `lib/subscription-check.ts`
+- ✅ Caching with `unstable_cache` (60 seconds) for performance
+- ✅ Stripe webhook invalidates cache on subscription changes
+
+**Documentation:**
+- `docs/APPWRITE_OFFICIAL_RECOMMENDATION.md` - Appwrite's official pattern
+- `docs/SUBSCRIPTION_ACCESS_CONTROL_PLAN.md` - Business logic & user states
+- `docs/NEXTJS_APPWRITE_STRIPE_PATTERNS.md` - Stack-specific implementation details
+
+---
+
 ## PRIMARY MISSION: Copy EXACT Midday Dashboard Components
 
 **CRITICAL RULE**: DO NOT RECREATE - COPY AND PASTE COMPONENTS FROM MIDDAY

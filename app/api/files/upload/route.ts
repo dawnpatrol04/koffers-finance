@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { DATABASE_ID, COLLECTIONS, STORAGE_BUCKETS, ID } from '@/lib/appwrite-config';
-import { storage, databases } from '@/lib/appwrite-server';
+import { createAdminClient } from '@/lib/appwrite-server';
 import { InputFile } from 'node-appwrite/file';
 import sharp from 'sharp';
 import { fileTypeFromBuffer } from 'file-type';
@@ -13,6 +13,8 @@ export async function POST(request: NextRequest) {
     const { account } = await createSessionClient();
     const user = await account.get();
     const userId = user.$id;
+
+    const { storage, databases } = await createAdminClient();
 
     // Get form data
     const formData = await request.formData();
