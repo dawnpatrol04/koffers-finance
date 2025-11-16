@@ -184,8 +184,8 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="fixed inset-0 md:inset-auto md:absolute md:top-0 md:right-0 md:bottom-0 md:left-[70px] flex flex-col overflow-hidden">
-      {/* Chat Sidebar */}
+    <>
+      {/* Chat Sidebar - Outside main container */}
       <ChatSidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
@@ -196,8 +196,10 @@ export default function ChatPage() {
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
       />
 
-      {/* Fixed Header with Usage Stats */}
-      <div className="flex-none border-b border-border bg-background px-4 py-3 md:px-6">
+      {/* Main Chat Container */}
+      <div className="fixed inset-0 md:inset-auto md:absolute md:top-0 md:right-0 md:bottom-0 md:left-[70px] flex flex-col overflow-hidden bg-background">
+        {/* Fixed Header with Usage Stats */}
+        <div className="flex-none border-b border-border bg-background px-4 py-3 md:px-6 relative z-10">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           {/* Title Section with Hamburger Menu */}
           <div className="min-w-0 flex items-start gap-3">
@@ -417,6 +419,7 @@ export default function ChatPage() {
           </p>
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 }
