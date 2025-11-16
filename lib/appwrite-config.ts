@@ -21,6 +21,8 @@ export const COLLECTIONS = {
   API_KEYS: 'apiKeys',
   SYNC_JOBS: 'syncJobs',
   SUBSCRIPTIONS: 'subscriptions',
+  CHAT_MESSAGES: 'chatMessages',
+  CONVERSATIONS: 'conversations',
 } as const;
 
 export const STORAGE_BUCKETS = {

@@ -81,8 +81,12 @@ import {
   MdSnippetFolder,
   MdSort,
   MdStop,
+  MdStopCircle,
   MdTrendingDown,
   MdTrendingUp,
+  MdOutlineBolt,
+  MdOutlineMessage,
+  MdOutlineChat,
 } from "react-icons/md";
 import { PiDiscordLogo } from "react-icons/pi";
 
@@ -549,6 +553,8 @@ export const Icons = {
   Search: MdSearch,
   Error: MdErrorOutline,
   AI: MdAutoAwesome,
+  Loader: MdDownloading,
+  AttachFile: MdOutlineAttachFile,
   AIOutline: MdOutlineAutoAwesome,
   Time: MdOutlineMoreTime,
   Add: MdOutlineAdd,
@@ -556,6 +562,8 @@ export const Icons = {
   Share: MdIosShare,
   Play: MdPlayArrow,
   Stop: MdStop,
+  StopCircle: MdStopCircle,
+  Zap: MdOutlineBolt,
   StopOutline: MdOutlineStop,
   PlayOutline: MdOutlinePlayArrow,
   MoreVertical: MdOutlineMoreVert,
@@ -602,4 +610,6 @@ export const Icons = {
   AttachEmail: MdOutlineAttachEmail,
   SyncAlt: MdOutlineSyncAlt,
   InfoOutline: MdOutlineInfo,
+  Message: MdOutlineMessage,
+  Chat: MdOutlineChat,
 };

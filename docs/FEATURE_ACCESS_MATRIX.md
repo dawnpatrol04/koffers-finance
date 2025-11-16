@@ -45,11 +45,12 @@
 | **Total Storage Used** | 0 GB | Current ≤ `maxStorageGB` | Current usage | Frozen (no new uploads) |
 | | | | | |
 | **💬 LLM Chat (AI Assistant)** | | | | |
-| Access Chat Interface | ✅ Limited (30 messages) | ✅ Full access | ✅ Full access | ❌ Blocked |
-| Send Messages | 🟡 30 messages max (lifetime) | 🟡 Limited by `maxChatsPerMonth` | ✅ Full access | ❌ Blocked |
+| Access Chat Interface | ✅ Limited (30 tokens) | ✅ Full access | ✅ Full access | ❌ Blocked |
+| Send Messages | 🟡 30 tokens max (lifetime) | 🟡 Limited by `maxTokensPerMonth` | ✅ Full access | ❌ Blocked |
 | Query Demo Data | ✅ Can ask about app features | ❌ No demo data | ❌ No demo data | ❌ Blocked |
 | Query Real Data | ❌ Blocked | ✅ Full access | ✅ Full access | ❌ Blocked |
-| **Chat Messages Used** | Count ≤ 30 (lifetime) | Count ≤ `maxChatsPerMonth` | Full access | N/A |
+| **AI Tokens Used** | Count ≤ 30 (lifetime) | Count ≤ `maxTokensPerMonth` | Full access | N/A |
+| **Token Tracking** | Per-message token count | Real-time usage display | Real-time usage display | N/A |
 | **Monthly Reset** | Never (lifetime limit) | Resets on billing cycle | N/A | N/A |
 | | | | | |
 | **🔌 MCP Server Access** | | | | |
@@ -89,15 +90,16 @@
 
 ## 📈 Usage Tracking Details
 
-### 1. AI-SDK Token/Message Counting
+### 1. AI-SDK Token Counting (IMPLEMENTED ✅)
 
 **What We Track:**
 ```typescript
 {
-  // Option A: Message Count (RECOMMENDED)
-  currentChatsUsed: number,        // Messages sent this month
-  maxChatsPerMonth: number,        // Plan limit (e.g., 5000)
-  chatUsageResetDate: string,      // Next billing cycle
+  // Token-based tracking (matches Anthropic API billing)
+  currentTokensUsed: number,       // Tokens used this billing period
+  maxTokensPerMonth: number,       // Plan limit (e.g., 50000)
+  lifetimeTokensUsed: number,      // All-time usage for analytics
+  lastTokenResetAt: string,        // Last monthly reset timestamp
 
   // Option B: Actual Tokens (optional, more precise)
   currentTokensUsed: number,       // Total tokens (prompt + completion)

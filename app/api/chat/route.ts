@@ -1,28 +1,59 @@
 import { anthropic } from '@ai-sdk/anthropic';
-import { streamText, convertToModelMessages, type UIMessage, tool, stepCountIs } from 'ai';
+import { streamText, convertToModelMessages, type UIMessage, tool, stepCountIs, type LanguageModelUsage } from 'ai';
 import { z } from 'zod';
-import { DATABASE_ID, COLLECTIONS } from '@/lib/appwrite-config';
-import { createSessionClient } from '@/lib/appwrite-server';
+import { DATABASE_ID, COLLECTIONS, ID } from '@/lib/appwrite-config';
+import { createSessionClient, createAdminClient } from '@/lib/appwrite-server';
 import { Query } from 'node-appwrite';
 import * as accountsData from '@/lib/data/accounts';
 import * as transactionsData from '@/lib/data/transactions';
 import * as filesData from '@/lib/data/files';
 import * as receiptsData from '@/lib/data/receipts';
+import { checkTokenLimit, incrementTokenUsage } from '@/lib/usage-tracking';
 
 // Allow streaming responses up to 30 seconds
 export const maxDuration = 30;
 
+// Custom metadata type for token usage
+type ChatMetadata = {
+  totalUsage: LanguageModelUsage;
+  model: string;
+  createdAt: number;
+};
+
+export type ChatUIMessage = UIMessage<ChatMetadata>;
+
 export async function POST(req: Request) {
   try {
-    // Validate session and get userId securely
+    // 1. Validate session and get userId securely
     console.log('[Chat API] Validating session...');
     const { account } = await createSessionClient();
     const user = await account.get();
     const userId = user.$id;
     console.log('[Chat API] Session validated for user:', userId);
 
-    const { messages }: { messages: UIMessage[] } = await req.json();
+    // 2. Check token limit BEFORE processing
+    const tokenCheck = await checkTokenLimit(userId);
 
+    if (!tokenCheck.allowed) {
+      console.log('[Chat API] Token limit exceeded for user:', userId);
+      return new Response(
+        JSON.stringify({
+          error: 'Token limit exceeded',
+          message: `You've used ${tokenCheck.tokensUsed.toLocaleString()} of ${tokenCheck.tokensLimit.toLocaleString()} tokens this month. Please upgrade your plan or wait until your next billing cycle.`,
+          tokensUsed: tokenCheck.tokensUsed,
+          tokensLimit: tokenCheck.tokensLimit,
+        }),
+        {
+          status: 429, // Too Many Requests
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+    }
+
+    // 3. Parse request
+    const { messages }: { messages: ChatUIMessage[] } = await req.json();
+
+    // 4. Stream text with token tracking
     const result = streamText({
     model: anthropic('claude-sonnet-4-20250514'),
     system: `You are a helpful financial assistant for Koffers, a personal finance management app.
@@ -276,9 +307,93 @@ IMPORTANT: After using a tool, always provide a natural language summary of the 
         },
       }),
     },
+
+    // CRITICAL: Track token usage and save messages after completion
+    onFinish: async ({ text, finishReason, usage, totalUsage, response }) => {
+      // Use totalUsage (all steps) not usage (final step only)
+      const tokensUsed = totalUsage.totalTokens;
+
+      console.log('[Chat API] Token usage:', {
+        promptTokens: totalUsage.promptTokens,
+        completionTokens: totalUsage.completionTokens,
+        totalTokens: tokensUsed,
+        finishReason,
+      });
+
+      // Increment user's token counter
+      try {
+        await incrementTokenUsage(userId, tokensUsed);
+        console.log('[Chat API] Token usage incremented successfully');
+      } catch (error) {
+        console.error('[Chat API] Failed to increment token usage:', error);
+        // Don't fail the request if usage tracking fails
+      }
+
+      // Save messages to history
+      try {
+        const { databases } = await createAdminClient();
+
+        // Get the user's last message (the one they just sent)
+        const userMessage = messages[messages.length - 1];
+
+        // Save user message
+        if (userMessage && userMessage.role === 'user') {
+          await databases.createDocument(
+            DATABASE_ID,
+            COLLECTIONS.CHAT_MESSAGES,
+            ID.unique(),
+            {
+              userId,
+              role: userMessage.role,
+              content: userMessage.content,
+              parts: JSON.stringify([{ type: 'text', text: userMessage.content }]),
+              metadata: JSON.stringify({}),
+            }
+          );
+          console.log('[Chat API] User message saved to history');
+        }
+
+        // Save assistant message
+        const assistantMessage = response.messages[0];
+        await databases.createDocument(
+          DATABASE_ID,
+          COLLECTIONS.CHAT_MESSAGES,
+          ID.unique(),
+          {
+            userId,
+            role: 'assistant',
+            content: text,
+            parts: JSON.stringify(assistantMessage?.content || [{ type: 'text', text }]),
+            toolInvocations: JSON.stringify(assistantMessage?.toolCalls || []),
+            metadata: JSON.stringify({
+              totalUsage,
+              model: 'claude-sonnet-4-20250514',
+              finishReason,
+            }),
+          }
+        );
+        console.log('[Chat API] Assistant message saved to history');
+      } catch (error) {
+        console.error('[Chat API] Failed to save messages to history:', error);
+        // Don't fail the request if message saving fails
+      }
+    },
   });
 
-    return result.toUIMessageStreamResponse();
+    // 5. Return stream with metadata
+    return result.toUIMessageStreamResponse({
+      originalMessages: messages,
+      messageMetadata: ({ part }) => {
+        // Attach usage metadata to the message
+        if (part.type === 'finish') {
+          return {
+            totalUsage: part.totalUsage,
+            model: part.response.modelId,
+            createdAt: Date.now(),
+          } as ChatMetadata;
+        }
+      },
+    });
   } catch (error: any) {
     // Handle authentication errors
     console.error('[Chat API] Error:', error.message, error);
