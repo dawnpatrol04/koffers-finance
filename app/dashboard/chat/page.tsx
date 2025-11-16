@@ -184,7 +184,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden">
+    <div className="fixed inset-0 md:inset-auto md:absolute md:top-0 md:right-0 md:bottom-0 md:left-[70px] flex flex-col overflow-hidden">
       {/* Chat Sidebar */}
       <ChatSidebar
         conversations={conversations}
