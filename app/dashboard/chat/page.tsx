@@ -159,7 +159,7 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-full overflow-hidden -m-4 md:-m-8">
+    <div className="fixed inset-0 top-[73px] flex overflow-hidden">
       {/* Main Chat Area - Takes remaining space */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Chat Messages - Scrollable */}
