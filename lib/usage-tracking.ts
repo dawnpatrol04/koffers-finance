@@ -69,9 +69,9 @@ export async function checkTokenLimit(userId: string): Promise<{
 
   const subscription = subscriptions.documents[0];
   const tokensUsed = subscription.currentTokensUsed || 0;
-  const tokensLimit = subscription.maxTokensPerMonth + (subscription.addonTokens || 0);
+  const tokensLimit = (subscription.maxTokensPerMonth || 100000) + (subscription.addonTokens || 0);
   const tokensRemaining = Math.max(0, tokensLimit - tokensUsed);
-  const percentUsed = (tokensUsed / tokensLimit) * 100;
+  const percentUsed = tokensLimit > 0 ? (tokensUsed / tokensLimit) * 100 : 0;
 
   return {
     allowed: tokensRemaining > 0,
@@ -104,9 +104,10 @@ export async function getUsageStats(userId: string) {
 
   const sub = subscriptions.documents[0];
 
-  const tokensLimit = (sub.maxTokensPerMonth || 0) + (sub.addonTokens || 0);
-  const storageLimit = (sub.maxStorageGB || 0) + (sub.addonStorage || 0);
-  const banksLimit = (sub.maxBanks || 0) + (sub.addonBanks || 0);
+  // Use sensible defaults for Starter tier if limits are not set
+  const tokensLimit = (sub.maxTokensPerMonth || 100000) + (sub.addonTokens || 0);
+  const storageLimit = (sub.maxStorageGB || 5) + (sub.addonStorage || 0);
+  const banksLimit = (sub.maxBanks || 2) + (sub.addonBanks || 0);
 
   return {
     tokens: {

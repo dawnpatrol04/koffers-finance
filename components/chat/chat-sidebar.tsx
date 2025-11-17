@@ -130,34 +130,12 @@ export function ChatSidebar({
   };
 
   return (
-    <>
-      {/* Overlay for mobile */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden"
-          onClick={onToggle}
-        />
-      )}
-
-      {/* Sidebar */}
-      <div
-        className={cn(
-          "fixed left-0 top-0 bottom-0 z-50 flex flex-col bg-background border-r border-border transition-transform duration-300 ease-in-out",
-          "w-64 md:w-72",
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
+    <div
+      className="flex flex-col bg-background border-l border-border h-full w-80"
+    >
         {/* Header */}
-        <div className="flex-none flex items-center justify-between p-4 border-b border-border">
+        <div className="flex-none p-4 border-b border-border">
           <h2 className="font-semibold text-lg">Conversations</h2>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onToggle}
-            className="md:hidden"
-          >
-            <Icons.Close className="h-4 w-4" />
-          </Button>
         </div>
 
         {/* New Chat Button */}
@@ -195,7 +173,6 @@ export function ChatSidebar({
             </>
           )}
         </div>
-      </div>
-    </>
+    </div>
   );
 }
