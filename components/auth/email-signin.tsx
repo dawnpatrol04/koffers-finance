@@ -18,35 +18,29 @@ export function EmailSignIn() {
     setLoading(true);
     setError(null);
 
-    try {
-      // Call appropriate API endpoint (signup or login)
-      const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login';
-      const body = isSignUp
-        ? JSON.stringify({ email, password, name })
-        : JSON.stringify({ email, password });
+    // Call appropriate API endpoint (signup or login)
+    const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login';
+    const body = isSignUp
+      ? JSON.stringify({ email, password, name })
+      : JSON.stringify({ email, password });
 
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body,
-      });
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
 
-      const data = await response.json();
+    const data = await response.json();
 
-      if (!response.ok || !data.success) {
-        setError(data.error || "Authentication failed");
-        return;
-      }
-
-      // Redirect to dashboard
-      router.push("/dashboard");
-      router.refresh();
-    } catch (err: any) {
-      console.error("Auth error:", err);
-      setError(err.message || "An unexpected error occurred");
-    } finally {
+    if (!response.ok || !data.success) {
+      setError(data.error || "Authentication failed");
       setLoading(false);
+      return;
     }
+
+    // Redirect to dashboard
+    router.push("/dashboard");
+    router.refresh();
   };
 
   return (
