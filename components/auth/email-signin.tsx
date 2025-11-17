@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { account } from "@/lib/appwrite-client";
-import { signUpUser, syncSession } from "@/lib/auth-actions";
+import { signUpUser } from "@/lib/auth-actions";
 
 export function EmailSignIn() {
   const [isOpen, setIsOpen] = useState(false);
@@ -33,15 +33,22 @@ export function EmailSignIn() {
       // Create session from client-side (sets browser cookie)
       const session = await account.createEmailPasswordSession(email, password);
 
-      // Sync session to server-side cookie
-      const syncResult = await syncSession(session.secret);
+      // Sync session to server-side cookie via API route
+      const response = await fetch('/api/auth/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionSecret: session.secret }),
+      });
 
-      if (syncResult.success) {
-        // Force a full page reload to ensure cookies are picked up
-        window.location.href = "/dashboard";
-      } else {
-        setError(syncResult.error || "Failed to sync session");
+      const data = await response.json();
+
+      if (!response.ok || !data.success) {
+        setError(data.error || "Failed to sync session");
+        return;
       }
+
+      // Force a full page reload to ensure cookies are picked up
+      window.location.href = "/dashboard";
     } catch (err: any) {
       console.error("Auth error:", err);
       setError(err.message || "An unexpected error occurred");
