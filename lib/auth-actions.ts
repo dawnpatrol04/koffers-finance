@@ -31,7 +31,7 @@ export async function signUpUser(email: string, password: string, name: string) 
 export async function syncSession(sessionSecret: string) {
   try {
     await setSession(sessionSecret);
-    return { success: true };
+    redirect('/dashboard');
   } catch (error: any) {
     console.error('Session sync error:', error);
     return {

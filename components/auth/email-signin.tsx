@@ -33,16 +33,8 @@ export function EmailSignIn() {
       // Create session from client-side (sets browser cookie)
       const session = await account.createEmailPasswordSession(email, password);
 
-      // Sync session to server-side cookie
-      const syncResult = await syncSession(session.secret);
-
-      if (syncResult.success) {
-        // Both cookies are now set - redirect to dashboard
-        router.push("/dashboard");
-        router.refresh();
-      } else {
-        setError(syncResult.error || "Failed to sync session");
-      }
+      // Sync session to server-side cookie (this will redirect to dashboard)
+      await syncSession(session.secret);
     } catch (err: any) {
       console.error("Auth error:", err);
       setError(err.message || "An unexpected error occurred");
