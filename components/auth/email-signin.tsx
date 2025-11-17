@@ -2,8 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { account } from "@/lib/appwrite-client";
-import { signUpUser } from "@/lib/auth-actions";
 
 export function EmailSignIn() {
   const [isOpen, setIsOpen] = useState(false);
@@ -21,34 +19,28 @@ export function EmailSignIn() {
     setError(null);
 
     try {
-      // If signing up, create the user first
-      if (isSignUp) {
-        const result = await signUpUser(email, password, name);
-        if (!result.success) {
-          setError(result.error || "Failed to create account");
-          return;
-        }
-      }
+      // Call appropriate API endpoint (signup or login)
+      const endpoint = isSignUp ? '/api/auth/signup' : '/api/auth/login';
+      const body = isSignUp
+        ? JSON.stringify({ email, password, name })
+        : JSON.stringify({ email, password });
 
-      // Create session from client-side (sets browser cookie)
-      const session = await account.createEmailPasswordSession(email, password);
-
-      // Sync session to server-side cookie via API route
-      const response = await fetch('/api/auth/session', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionSecret: session.secret }),
+        body,
       });
 
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        setError(data.error || "Failed to sync session");
+        setError(data.error || "Authentication failed");
         return;
       }
 
-      // Force a full page reload to ensure cookies are picked up
-      window.location.href = "/dashboard";
+      // Redirect to dashboard
+      router.push("/dashboard");
+      router.refresh();
     } catch (err: any) {
       console.error("Auth error:", err);
       setError(err.message || "An unexpected error occurred");
