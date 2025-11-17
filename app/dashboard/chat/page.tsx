@@ -227,7 +227,7 @@ export default function ChatPage() {
         </Conversation>
 
         {/* Fixed Input Area at Bottom */}
-        <div className="flex-shrink-0 border-t border-border bg-background px-4 py-3 md:px-6">
+        <div className="flex-shrink-0 border-t border-border bg-background px-4 pt-3 pb-2 md:px-6">
           <div className="max-w-4xl mx-auto">
             <PromptInput
               onSubmit={(message, e) => {
@@ -270,7 +270,7 @@ export default function ChatPage() {
               </PromptInputFooter>
             </PromptInput>
 
-            <p className="text-xs text-muted-foreground mt-1.5 text-center">
+            <p className="text-xs text-muted-foreground mt-1 mb-0 text-center">
               Press Enter to send, Shift + Enter for new line
             </p>
           </div>
