@@ -288,10 +288,10 @@ These AI features are what will set Koffers apart from competitors!
 - Local copy: `/Users/mikeparsons/Desktop/ProjectsV2/koffers_finance/temp/midday`
 
 ## Primary Test User (ALWAYS USE THIS FOR TESTING)
-- Email: user@test.com
+- Email: dawnpatrol04@gmail.com
 - Password: qwe123qwe
 
-**IMPORTANT**: This is the ONLY test account to use for all testing and development. Always login with these credentials.
+**IMPORTANT**: This is the ONLY test account to use for all testing and development. Always login with these credentials. This account has the actual Plaid data connected.
 
 ## Screenshots Taken
 - `dashboard-with-midday-components.png` - Dashboard overview with sidebar

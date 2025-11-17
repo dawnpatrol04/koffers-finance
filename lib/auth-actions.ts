@@ -4,19 +4,15 @@ import { createAdminClient, setSession, deleteSession } from './appwrite-server'
 import { ID } from 'node-appwrite';
 import { redirect } from 'next/navigation';
 
-export async function signUpWithEmail(email: string, password: string, name: string) {
+/**
+ * Create a new user account (server-side only)
+ * After creating the account, the client should call account.createEmailPasswordSession()
+ * to set the browser cookie, then syncSession() to set the server cookie
+ */
+export async function signUpUser(email: string, password: string, name: string) {
   try {
     const { account } = await createAdminClient();
-
-    // Create user account
     await account.create(ID.unique(), email, password, name);
-
-    // Create session
-    const session = await account.createEmailPasswordSession(email, password);
-
-    // Store session in cookie
-    await setSession(session.secret);
-
     return { success: true };
   } catch (error: any) {
     console.error('Sign up error:', error);
@@ -27,22 +23,20 @@ export async function signUpWithEmail(email: string, password: string, name: str
   }
 }
 
-export async function signInWithEmail(email: string, password: string) {
+/**
+ * Sync session secret from client-side created session to server-side cookie
+ * CRITICAL: This must be called AFTER client creates session with account.createEmailPasswordSession()
+ * The client-side call sets the browser cookie (a_session_*), this sets the server cookie (appwrite-session)
+ */
+export async function syncSession(sessionSecret: string) {
   try {
-    const { account } = await createAdminClient();
-
-    // Create session
-    const session = await account.createEmailPasswordSession(email, password);
-
-    // Store session in cookie
-    await setSession(session.secret);
-
+    await setSession(sessionSecret);
     return { success: true };
   } catch (error: any) {
-    console.error('Sign in error:', error);
+    console.error('Session sync error:', error);
     return {
       success: false,
-      error: error?.message || 'Invalid email or password'
+      error: error?.message || 'Failed to sync session'
     };
   }
 }
