@@ -31,7 +31,8 @@ export async function signUpUser(email: string, password: string, name: string) 
 export async function syncSession(sessionSecret: string) {
   try {
     await setSession(sessionSecret);
-    redirect('/dashboard');
+    // Revalidate the path to ensure middleware picks up the new cookie
+    return { success: true };
   } catch (error: any) {
     console.error('Session sync error:', error);
     return {
